@@ -1,0 +1,29 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="sources">
+   <SourceProxy name="FitsReader"
+                class="vtkFitsReader"
+                label="FITS reader">
+     <Documentation
+       short_help="Read a FITS file."
+       long_help="Read a FITS file into an image data.">
+       The FITS reader reads FITS files. The default file extension is .fits.
+     </Documentation>
+     <StringVectorProperty
+        name="FileName"
+        animateable="0"
+        command="SetFileName"
+        number_of_elements="1"
+        panel_visibility="never">
+        <FileListDomain name="files"/>
+        <Documentation>
+          This property specifies the file name for the FITS reader.
+        </Documentation>
+     </StringVectorProperty>
+
+     <Hints>
+      <ReaderFactory extensions="fits" file_description="FITS Files" />
+     </Hints>
+   <!-- End FITSReader -->
+   </SourceProxy>
+  </ProxyGroup>
+</ServerManagerConfiguration>

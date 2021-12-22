@@ -1,0 +1,25 @@
+NAME
+  FitsReader::vtkFitsReader
+LIBRARY_NAME
+  vtkFitsReader
+DEPENDS
+  ParaView::VTKExtensionsCore
+  VTK::CommonCore
+  VTK::CommonDataModel
+  VTK::CommonExecutionModel
+  VTK::RenderingOpenGL2
+  VTK::RenderingCore
+  VTK::RenderingAnnotation
+  VTK::IOImage
+PRIVATE_DEPENDS
+  VTK::CommonMisc
+  VTK::ImagingCore
+  VTK::CommonMath
+  VTK::CommonSystem
+  VTK::CommonTransforms
+  VTK::IOCore
+  ParaView::VTKExtensionsIOCore
+  VTK::vtksys
+OPTIONAL_DEPENDS
+  VTK::ParallelCore
+  VTK::ParallelMPI
