@@ -1,8 +1,11 @@
 FitsReader Plugin
-ParaView/VTK reader for visualization of FITS format.
-Version: 1.0
 
 ---------------------------------------------------------
+
+ParaView/VTK reader for visualization of FITS format.
+
+
+
 
 Contact Info:
 ------------
