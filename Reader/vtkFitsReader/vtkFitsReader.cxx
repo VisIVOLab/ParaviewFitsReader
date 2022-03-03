@@ -69,7 +69,7 @@ void vtkFitsReader::ExecuteInformation()
     int dataExtent[6] = {0};
     double spacings[3] = {0.};
     double origin[3] = {0.};
-    char *naxis;
+    char naxis[10];
     int nfound = 0;
     char comment[120];
 
