@@ -67,9 +67,15 @@ protected:
     int NumberOfComponents;
     long naxes[3];
 
+    virtual vtkImageData * AllocateOutputData(vtkDataObject *out, vtkInformation* outInfo) override;
+
+    virtual void AllocateOutputData(vtkImageData *out, vtkInformation* outInfo, int *uExtent) override
+      { Superclass::AllocateOutputData(out, outInfo, uExtent); }
+    
+    bool AllocatePointData(vtkImageData *out, vtkInformation* outInfo);
+
     void ExecuteInformation() override;
     void ExecuteDataWithInformation(vtkDataObject *out, vtkInformation *outInfo) override;
-
 private:
     vtkFitsReader(const vtkFitsReader &) = delete;
     void operator=(const vtkFitsReader &) = delete;

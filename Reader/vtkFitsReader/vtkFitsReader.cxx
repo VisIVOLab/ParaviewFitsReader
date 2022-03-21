@@ -16,6 +16,9 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <vtkShortArray.h>
+#include <vtkDoubleArray.h>
+
 // vtkCxxRevisionMacro(vtkFitsReader, "$Revision: 1.1 $");
 vtkStandardNewMacro(vtkFitsReader);
 
@@ -76,9 +79,6 @@ void vtkFitsReader::ExecuteInformation()
     if (fits_read_key(this->fptr, TSTRING, "NAXIS", naxis, comment, &ReadStatus))
         printerror(this->ReadStatus);
 
-    cerr << "naxis " << naxis << endl;
-    cerr << "comment " << comment << endl;
-
     long naxes[boost::lexical_cast<int>(naxis)];
     if (fits_read_keys_lng(this->fptr, "NAXIS", 1, 3, naxes, &nfound, &ReadStatus))
         printerror(this->ReadStatus);
@@ -104,6 +104,100 @@ void vtkFitsReader::ExecuteInformation()
     }
 }
 
+//----------------------------------------------------------------------------
+vtkImageData *vtkFitsReader::AllocateOutputData(vtkDataObject *out, vtkInformation* outInfo){
+    
+    cerr << "AllocateOutputData" << endl;
+
+    
+  vtkImageData *res = vtkImageData::SafeDownCast(out);
+  if (!res)
+    {
+    vtkErrorMacro("vtkFITSReader::AllocateOutputData: Call to AllocateOutputData with"
+                    " non vtkImageData output.");
+    return nullptr;
+    }
+
+  this->ExecuteInformation();
+
+  res->SetExtent(this->GetUpdateExtent());
+
+  if (!this->AllocatePointData(res, outInfo))
+    {
+    vtkErrorMacro("vtkFITSReader::AllocateOutputData: AllocatePointData failed.");
+    return nullptr;
+    }
+
+  return res;
+}
+
+//----------------------------------------------------------------------------
+bool vtkFitsReader::AllocatePointData(vtkImageData *out, vtkInformation* outInfo) {
+
+    
+    cerr << "AllocatePointData" << endl;
+
+  vtkDataArray *pd = nullptr;
+  int Extent[6];
+  out->GetExtent(Extent);
+
+  // if the scalar type has not been set then we have a problem
+  if (this->DataType == VTK_VOID)
+    {
+    vtkErrorMacro("vtkFITSReader::AllocatePointData:"
+                  " attempt to allocate void scalars.");
+    return false;
+    }
+
+  // if we currently have scalars then just adjust the size
+  pd = out->GetPointData()->GetScalars();
+
+  if (pd && pd->GetDataType() == this->DataType
+      && pd->GetReferenceCount() == 1)
+    {
+    pd->SetNumberOfComponents(this->GetNumberOfComponents());
+    pd->SetNumberOfTuples((Extent[1] - Extent[0] + 1)*
+                               (Extent[3] - Extent[2] + 1)*
+                               (Extent[5] - Extent[4] + 1));
+    // Since the execute method will be modifying the scalars
+    // directly.
+    pd->Modified();
+    return true;
+    }
+
+  // allocate the new scalars
+  switch (this->DataType)
+    {
+    case VTK_DOUBLE:
+      pd = vtkDoubleArray::New();
+      break;
+    case VTK_FLOAT:
+      pd = vtkFloatArray::New();
+      break;
+    case VTK_SHORT:
+      pd = vtkShortArray::New();
+      break;
+    default:
+      vtkErrorMacro("vtkFITSReader::AllocatePointData: Could not allocate data type.");
+      return false;
+    }
+  vtkDataObject::SetPointDataActiveScalarInfo(outInfo,
+    this->DataType, this->GetNumberOfComponents());
+  pd->SetNumberOfComponents(this->GetNumberOfComponents());
+
+  // allocate enough memors
+  pd->SetNumberOfTuples((Extent[1] - Extent[0] + 1)*
+                      (Extent[3] - Extent[2] + 1)*
+                      (Extent[5] - Extent[4] + 1));
+
+  out->GetPointData()->SetScalars(pd);
+  vtkDataObject::SetPointDataActiveScalarInfo(outInfo,
+         this->DataType, this->GetNumberOfComponents());
+
+  pd->Delete();
+  return true;
+}
+
 //------------------------------------------------------------------------------
 // This function reads a data from a file.  The datas extent/axes
 // are assumed to be the same as the file extent/order.
@@ -113,12 +207,15 @@ void vtkFitsReader::ExecuteDataWithInformation(vtkDataObject *output, vtkInforma
 
     if (this->GetOutputInformation(0))
     {
+        cerr << "vtkStreamingDemandDrivenPipeline" << endl;
+
         this->GetOutputInformation(0)->Set(
             vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(),
             this->GetOutputInformation(0)->Get(
                 vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT()),
             6);
     }
+    
     vtkImageData *data = this->AllocateOutputData(output, outInfo);
 
     if (data == nullptr)
@@ -153,7 +250,6 @@ void vtkFitsReader::ExecuteDataWithInformation(vtkDataObject *output, vtkInforma
     this->ComputeDataIncrements();
     unsigned int naxes = data->GetDataDimension();
 
-    cerr << "naxes" << naxes << endl;
     int naxe[naxes];
     data->GetDimensions(naxe);
 
@@ -163,15 +259,39 @@ void vtkFitsReader::ExecuteDataWithInformation(vtkDataObject *output, vtkInforma
         dim *= naxe[axii];
     }
 
-    cerr << "dim" << dim << endl;
-
     float nullptrval = NAN;
     int anynullptr;
-    if (fits_read_img(this->fptr, TFLOAT, 1, dim, &nullptrval, ptr, &anynullptr, &this->ReadStatus))
+    
+    // load the data
+    switch (this->DataType)
     {
-        fits_report_error(stderr, this->ReadStatus);
-        vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: data is nullptr.");
-        return;
+        case VTK_DOUBLE:
+            if(fits_read_img(this->fptr, TDOUBLE, 1, dim, &nullptrval, ptr, &anynullptr, &this->ReadStatus))
+            {
+                fits_report_error(stderr, this->ReadStatus);
+                vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: data is nullptr.");
+                return;
+           }
+        break;
+        case VTK_FLOAT:
+           if(fits_read_img(this->fptr, TFLOAT, 1, dim, &nullptrval, ptr, &anynullptr, &this->ReadStatus))
+           {
+               fits_report_error(stderr, this->ReadStatus);
+               vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: data is nullptr.");
+               return;
+           }
+        break;
+        case VTK_SHORT:
+            if(fits_read_img(this->fptr, TSHORT, 1, dim, &nullptrval, ptr, &anynullptr, &this->ReadStatus))
+            {
+             fits_report_error(stderr, this->ReadStatus);
+             vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: data is nullptr.");
+             return;
+            }
+       break;
+       default:
+            vtkErrorMacro("vtkFITSReader::ExecuteDataWithInformation: Could not load data");
+            return;
     }
 
     if (fits_close_file(this->fptr, &this->ReadStatus))
@@ -180,6 +300,7 @@ void vtkFitsReader::ExecuteDataWithInformation(vtkDataObject *output, vtkInforma
                       << this->GetFileName() << ":\n");
         fits_report_error(stderr, this->ReadStatus);
     }
+    
 }
 
 // Note: from cookbook.c in fitsio distribution.
