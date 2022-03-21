@@ -4,6 +4,7 @@ FitsReader Plugin
 
 ParaView/VTK reader for visualization of FITS format.
 
+The reader is adapted from [SlicerAstro](https://github.com/Punzo/SlicerAstro) vtkFits
 
 
 
