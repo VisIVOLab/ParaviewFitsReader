@@ -19,6 +19,9 @@
 #include <vtkShortArray.h>
 #include <vtkDoubleArray.h>
 
+#include "vtkMultiProcessController.h"
+#include "vtkObjectFactory.h"
+
 // vtkCxxRevisionMacro(vtkFitsReader, "$Revision: 1.1 $");
 vtkStandardNewMacro(vtkFitsReader);
 
@@ -27,10 +30,16 @@ vtkFitsReader::vtkFitsReader()
 {
     this->fptr = nullptr;
     this->ReadStatus = 0;
+    
+    // MPI
+    //InitMPICommunicator();
+    controller = vtkMultiProcessController::GetGlobalController();
+
     for (int i = 0; i < 3; i++)
     {
         naxes[i] = 10;
     }
+    
 }
 
 //----------------------------------------------------------------------------
@@ -38,6 +47,18 @@ vtkFitsReader::~vtkFitsReader()
 {
     this->SetFileName(0);
 }
+
+/*
+void vtkFitsReader::InitMPICommunicator()
+{
+  this->Controller = vtkMultiProcessController::GetGlobalController();
+
+  myRank = this->Controller->GetLocalProcessId();
+  numRanks = this->Controller->GetNumberOfProcesses();
+
+  msgLog << "myRank: " << myRank << ", num ranks:" << numRanks << "\n";
+}
+ */
 
 //------------------------------------------------------------------------------
 void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
@@ -52,55 +73,64 @@ int vtkFitsReader::CanReadFile(const char *fname)
 
 void vtkFitsReader::ExecuteInformation()
 {
-    cerr << "ExecuteInformation " << FileName << " " << endl;
-    if (fits_open_data(&this->fptr, FileName, READONLY, &ReadStatus))
+
+    if (controller->GetLocalProcessId()==0)
     {
-        vtkErrorMacro("vtkFITSReader::ExecuteInformation: ERROR IN CFITSIO! Error reading"
-                      " "
-                      << FileName << ": \n");
-        fits_report_error(stderr, this->ReadStatus);
-        return;
+      cerr << "ExecuteInformation " << FileName << " " << endl;
+      cerr<<"i am the PE "<<controller->GetLocalProcessId()<<" and i read the number of axis"<<endl;
+      if (fits_open_data(&this->fptr, FileName, READONLY, &ReadStatus))
+      {
+          vtkErrorMacro("vtkFITSReader::ExecuteInformation: ERROR IN CFITSIO! Error reading"
+                        " "
+                        << FileName << ": \n");
+          fits_report_error(stderr, this->ReadStatus);
+          return;
+      }
+
+      this->SetPointDataType(vtkDataSetAttributes::SCALARS);
+      this->SetNumberOfComponents(1);
+
+      this->SetDataType(VTK_FLOAT);
+      this->SetDataScalarType(VTK_FLOAT);
+
+      // Set axis information
+      int dataExtent[6] = {0};
+      double spacings[3] = {0.};
+      double origin[3] = {0.};
+      char naxis[10];
+      int nfound = 0;
+      char comment[120];
+
+      if (fits_read_key(this->fptr, TSTRING, "NAXIS", naxis, comment, &ReadStatus))
+          printerror(this->ReadStatus);
+
+      long naxes[boost::lexical_cast<int>(naxis)];
+      if (fits_read_keys_lng(this->fptr, "NAXIS", 1, 3, naxes, &nfound, &ReadStatus))
+          printerror(this->ReadStatus);
+
+      // calculate the dataExtent and setting the Spacings and Origin
+      for (unsigned int axii = 0; axii < boost::lexical_cast<int>(naxis); axii++)
+      {
+          dataExtent[2 * axii] = 0;
+          dataExtent[2 * axii + 1] = naxes[axii] - 1; // StringToInt(this->GetHeaderValue(("SlicerAstro.NAXIS" + IntToString(axii + 1)).c_str())) - 1;
+          origin[axii] = 0.0;
+          spacings[axii] = 1.0;
+      }
+
+      this->SetDataExtent(dataExtent);
+      this->SetDataSpacing(spacings);
+      this->SetDataOrigin(origin);
+
+      this->vtkMPIImageReader::ExecuteInformation();
+
+      if (fits_close_file(this->fptr, &this->ReadStatus))
+      {
+          fits_report_error(stderr, this->ReadStatus);
+      }
     }
-
-    this->SetPointDataType(vtkDataSetAttributes::SCALARS);
-    this->SetNumberOfComponents(1);
-
-    this->SetDataType(VTK_FLOAT);
-    this->SetDataScalarType(VTK_FLOAT);
-
-    // Set axis information
-    int dataExtent[6] = {0};
-    double spacings[3] = {0.};
-    double origin[3] = {0.};
-    char naxis[10];
-    int nfound = 0;
-    char comment[120];
-
-    if (fits_read_key(this->fptr, TSTRING, "NAXIS", naxis, comment, &ReadStatus))
-        printerror(this->ReadStatus);
-
-    long naxes[boost::lexical_cast<int>(naxis)];
-    if (fits_read_keys_lng(this->fptr, "NAXIS", 1, 3, naxes, &nfound, &ReadStatus))
-        printerror(this->ReadStatus);
-
-    // calculate the dataExtent and setting the Spacings and Origin
-    for (unsigned int axii = 0; axii < boost::lexical_cast<int>(naxis); axii++)
+    else
     {
-        dataExtent[2 * axii] = 0;
-        dataExtent[2 * axii + 1] = naxes[axii] - 1; // StringToInt(this->GetHeaderValue(("SlicerAstro.NAXIS" + IntToString(axii + 1)).c_str())) - 1;
-        origin[axii] = 0.0;
-        spacings[axii] = 1.0;
-    }
-
-    this->SetDataExtent(dataExtent);
-    this->SetDataSpacing(spacings);
-    this->SetDataOrigin(origin);
-
-    this->vtkImageReader2::ExecuteInformation();
-
-    if (fits_close_file(this->fptr, &this->ReadStatus))
-    {
-        fits_report_error(stderr, this->ReadStatus);
+      cerr<<"i am the PE "<<controller->GetLocalProcessId()<<" of "<<controller->GetNumberOfProcesses()<<endl;
     }
 }
 
@@ -135,7 +165,7 @@ vtkImageData *vtkFitsReader::AllocateOutputData(vtkDataObject *out, vtkInformati
 bool vtkFitsReader::AllocatePointData(vtkImageData *out, vtkInformation* outInfo) {
 
     
-    cerr << "AllocatePointData" << endl;
+  cerr << "AllocatePointData" << endl;
 
   vtkDataArray *pd = nullptr;
   int Extent[6];
@@ -253,7 +283,7 @@ void vtkFitsReader::ExecuteDataWithInformation(vtkDataObject *output, vtkInforma
     int naxe[naxes];
     data->GetDimensions(naxe);
 
-    int dim = 1;
+    long dim = 1;
     for (unsigned int axii = 0; axii < naxes; axii++)
     {
         dim *= naxe[axii];

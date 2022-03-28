@@ -10,7 +10,7 @@ DEPENDS
   VTK::RenderingOpenGL2
   VTK::RenderingCore
   VTK::RenderingAnnotation
-  VTK::IOImage
+  VTK::IOMPIImage
 PRIVATE_DEPENDS
   VTK::CommonMisc
   VTK::ImagingCore

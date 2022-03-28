@@ -12,16 +12,22 @@
 #include "vtkStructuredPoints.h"
 #include "vtkFloatArray.h"
 
+#include "vtkMPIImageReader.h"
+#include "vtkMultiProcessController.h"
+
 extern "C"
 {
 #include "fitsio.h"
 }
 
-class VTK_EXPORT vtkFitsReader : public vtkImageReader2
+class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
 public:
     static vtkFitsReader *New();
-    vtkTypeMacro(vtkFitsReader, vtkImageReader2);
+    vtkTypeMacro(vtkFitsReader, vtkMPIImageReader);
+    // MPI Stuff
+    //void InitMPICommunicator();
+    
     void PrintSelf(ostream &os, vtkIndent indent) override;
     int CanReadFile(VTK_FILEPATH const char *fname) override;
     /**
@@ -80,5 +86,7 @@ private:
     vtkFitsReader(const vtkFitsReader &) = delete;
     void operator=(const vtkFitsReader &) = delete;
     void printerror(int status); // from fitsio distribution
+    vtkMultiProcessController* controller = vtkMultiProcessController::GetGlobalController();
+
 };
 #endif
