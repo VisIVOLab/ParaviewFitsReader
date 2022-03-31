@@ -77,6 +77,8 @@ private:
     void operator=(const vtkFitsReader &) = delete;
     void printerror(int status); // from fitsio distribution
 
+    int dataExtent[6] = {0};
+
     vtkMultiProcessController* controller;
 };
 #endif

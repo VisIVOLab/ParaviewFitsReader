@@ -74,7 +74,6 @@ int vtkFitsReader::RequestInformation(
     this->SetDataScalarType(VTK_FLOAT);
 
     // Set axis information
-    int dataExtent[6] = {0};
     double spacings[3] = {0.};
     double origin[3] = {0.};
     char naxis[10];
@@ -123,15 +122,33 @@ int vtkFitsReader::RequestData(  vtkInformation*, vtkInformationVector**,  vtkIn
     cerr << "RequestData" << endl;
     vtkInformation* outInfo = outVec->GetInformationObject(0);
     vtkImageData* output = vtkImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+    vtkProcessModule *ParInfo;
 
     int extent[6];
-    outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), extent);
-    output->SetExtent(extent);
+    extent[0]=dataExtent[0];
+    extent[1]=dataExtent[1];
+    extent[2]=dataExtent[2];
+    extent[3]=dataExtent[3];
+    
+    int slices_pe=(dataExtent[5]-dataExtent[4])/ParInfo->GetNumberOfLocalPartitions();
+    int from=ParInfo->GetPartitionId()*slices_pe;
+    int to=(ParInfo->GetPartitionId()+1)*slices_pe;
+    extent[4]=from;
+    extent[5]=to;
+        
     std::stringstream msg;
 
-    vtkProcessModule *ParInfo;
+    msg<< "slices_pe " <<slices_pe<<" subext from rank "<< ParInfo->GetPartitionId() << " 0: " <<extent[0]<<" 1: "<<extent[1]<<" 2: "<<extent[2]<<" 3: "<<extent[3]<<" 4: "<<extent[4]<<" 5: "<<extent[5] <<endl;
+
+    //outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), extent);
+    output->SetExtent(extent);
+
     if (ParInfo->GetPartitionId()==0)
-      msg<<"Num of Processors = "<<ParInfo->GetNumberOfLocalPartitions()<<endl;
+    {
+        msg<<"Num of Processors = "<<ParInfo->GetNumberOfLocalPartitions()<<endl;
+        msg<< "full from rank "<< ParInfo->GetPartitionId() << " 0: " <<dataExtent[0]<<" 1: "<<dataExtent[1]<<" 2: "<<dataExtent[2]<<" 3: "<<dataExtent[3]<<" 4: "<<dataExtent[4]<<" 5: "<<dataExtent[5] <<endl;
+    }
+
     msg<< "subext from rank "<< ParInfo->GetPartitionId() << " 0: " <<extent[0]<<" 1: "<<extent[1]<<" 2: "<<extent[2]<<" 3: "<<extent[3]<<" 4: "<<extent[4]<<" 5: "<<extent[5] <<endl;
 
     vtkImageData *data = this->AllocateOutputData(output, outInfo);
@@ -170,21 +187,23 @@ int vtkFitsReader::RequestData(  vtkInformation*, vtkInformationVector**,  vtkIn
 
     cerr << "naxes" << naxes << endl;
     int naxe[naxes];
-    data->GetDimensions(naxe);
-    
-    
+/*  naxe[0]=dataExtent[1]-dataExtent[0];
+    naxe[1]=dataExtent[3]-dataExtent[2];
+    naxe[2]=dataExtent[5]-dataExtent[4];
+    data->SetDimensions(naxe);
+  */  
+
     int dim = 1;
     for (unsigned int axii = 0; axii < naxes; axii++)
     {
         dim *= naxe[axii];
         msg<< naxe[axii]<<endl;
     }
-        msg<< ""<<endl;
 
-    //long dim= naxe[0]*naxe[1]*(extent[4]-extent[5]);
+//    long dim= (extent[1]-extent[0])*(extent[3]-extent[2])*(extent[5]-extent[4]);
     int start_position=(naxe[0]*naxe[1]*extent[4])+1;
-    msg<< "i am the PE"<< ParInfo->GetPartitionId() << " and i read " <<dim<<" elements from "<< start_position<<endl;
-
+    msg<< "i am the PE"<< ParInfo->GetPartitionId() << " and i read " <<dim<<" elements from "<< start_position<<" ("<<naxe[0]<<" * "<<naxe[1]<<" * "<<extent[4]<<")+1"<<endl;
+    msg<< ""<<endl;
     cerr<<msg.str()<<endl;
 
     float nullptrval = NAN;
