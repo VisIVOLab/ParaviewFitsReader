@@ -70,7 +70,9 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     int maxaxis = 3;
     int imgtype = 0;
     int naxis = 0;
-    long naxes[maxaxis] = {0};
+    long naxes[maxaxis];// = {0};
+    memset( naxes, 0, maxaxis*sizeof(long) );
+
     if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
     {
         vtkErrorMacro("vtkFitsReader::RequestInformation (# " << ProcInfo->GetPartitionId() << ")\n"
@@ -161,10 +163,14 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     }
 
     int size = strlen(FileName) + 100;
-    char fn[size] = {0};
+    char fn[size];// = {0};
+    memset( fn, 0, size*sizeof(char) );
+
     snprintf(fn, size, "%s[%d:%d, %d:%d, %d:%d]",
              FileName, dataExtent[0] + 1, dataExtent[1] + 1, dataExtent[2] + 1,
              dataExtent[3] + 1, dataExtent[4] + 1, dataExtent[5] + 1);
+
+    cout <<fn<<endl;
 
     fitsfile *fptr;
     int ReadStatus;
@@ -181,7 +187,9 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     int maxaxis = 3;
     int imgtype = 0;
     int naxis = 0;
-    long naxes[maxaxis] = {0};
+    long naxes[maxaxis];// = {0};
+    memset( naxes, 0, maxaxis*sizeof(long) );
+
     if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
     {
         vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
