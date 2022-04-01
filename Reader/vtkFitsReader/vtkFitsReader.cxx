@@ -1,22 +1,26 @@
 #include "vtkFitsReader.h"
+
+#include "fitsio.h"
+
 #include "vtkCommand.h"
 #include "vtkInformation.h"
 #include "vtkInformationVector.h"
+#include "vtkImageData.h"
 #include "vtkObjectFactory.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
 #include "vtkFloatArray.h"
-#include <cmath>
 #include "vtkPointData.h"
+#include "vtkErrorCode.h"
+#include "vtkProcessModule.h"
 
-#include <stdlib.h> /* atof */
-#include <string>
-#include <vector>
-#include <sstream>
-#include <vtkErrorCode.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include "vtkProcessModule.h"
+#include <cmath>
+#include <cstdlib>
+#include <string>
+#include <vector>
+#include <sstream>
 
 // vtkCxxRevisionMacro(vtkFitsReader, "$Revision: 1.1 $");
 vtkStandardNewMacro(vtkFitsReader);
@@ -24,14 +28,7 @@ vtkStandardNewMacro(vtkFitsReader);
 //----------------------------------------------------------------------------
 vtkFitsReader::vtkFitsReader()
 {
-    this->fptr = nullptr;
-    this->ReadStatus = 0;
-    this->controller = vtkMultiProcessController::GetGlobalController();
-
-    for (int i = 0; i < 3; i++)
-    {
-        naxes[i] = 10;
-    }
+    this->FileName = NULL;
 }
 
 //----------------------------------------------------------------------------
@@ -46,196 +43,188 @@ void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
     this->Superclass::PrintSelf(os, indent);
 }
 
+//------------------------------------------------------------------------------
 int vtkFitsReader::CanReadFile(const char *fname)
 {
     return 1;
 }
 
-int vtkFitsReader::RequestInformation(
-  vtkInformation*, vtkInformationVector**,
-  vtkInformationVector* outVec)
+//------------------------------------------------------------------------------
+int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec)
 {
-    cerr << "RequestInformation " << FileName << " " << endl;
-    vtkInformation* outInfo = outVec->GetInformationObject(0);
+    vtkProcessModule *ProcInfo;
+    cout << "RequestInformation " << FileName << " (#" << ProcInfo->GetPartitionId() << ") " << endl;
 
-    if (fits_open_data(&this->fptr, FileName, READONLY, &ReadStatus))
+    fitsfile *fptr;
+    int ReadStatus = 0;
+    if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
     {
-        vtkErrorMacro("vtkFITSReader::ExecuteInformation: ERROR IN CFITSIO! Error reading"
-                      " "
-                      << FileName << ": \n");
-        fits_report_error(stderr, this->ReadStatus);
-        return -1;
+        vtkErrorMacro("vtkFitsReader::RequestInformation (# " << ProcInfo->GetPartitionId() << ")\n"
+                                                              << "ERROR IN CFITSIO! Error reading "
+                                                              << FileName << ":\n");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    // Get axis information
+    int maxaxis = 3;
+    int imgtype = 0;
+    int naxis = 0;
+    long naxes[maxaxis] = {0};
+    if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
+    {
+        vtkErrorMacro("vtkFitsReader::RequestInformation (# " << ProcInfo->GetPartitionId() << ")\n"
+                                                              << "ERROR IN CFITSIO! Error reading image param "
+                                                              << FileName << ":\n");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    if (fits_close_file(fptr, &ReadStatus))
+    {
+        vtkErrorMacro("vtkFitsReader::RequestInformation (# " << ProcInfo->GetPartitionId() << ")\n"
+                                                              << "ERROR IN CFITSIO! Error closing "
+                                                              << FileName << ":\n");
+        fits_report_error(stderr, ReadStatus);
+        // We should have axes information, so we do not abort (i.e. no return here)
+    }
+
+    // Calculate the DataExtent and set the Spacing and Origin
+    double spacings[3] = {1.0};
+    double origin[3] = {0.0};
+    int dataExtent[6];
+    for (unsigned int axii = 0; axii < naxis; axii++)
+    {
+        dataExtent[2 * axii] = 0;
+        dataExtent[2 * axii + 1] = naxes[axii] - 1;
     }
 
     this->SetPointDataType(vtkDataSetAttributes::SCALARS);
     this->SetNumberOfComponents(1);
-
     this->SetDataType(VTK_FLOAT);
     this->SetDataScalarType(VTK_FLOAT);
-
-    // Set axis information
-    double spacings[3] = {0.};
-    double origin[3] = {0.};
-    char naxis[10];
-    int nfound = 0;
-    char comment[120];
-
-    if (fits_read_key(this->fptr, TSTRING, "NAXIS", naxis, comment, &ReadStatus))
-        printerror(this->ReadStatus);
-
-    cerr << "naxis " << naxis << endl;
-
-    long naxes[boost::lexical_cast<int>(naxis)];
-    if (fits_read_keys_lng(this->fptr, "NAXIS", 1, 3, naxes, &nfound, &ReadStatus))
-        printerror(this->ReadStatus);
-
-    // calculate the dataExtent and setting the Spacings and Origin
-    for (unsigned int axii = 0; axii < boost::lexical_cast<int>(naxis); axii++)
-    {
-        dataExtent[2 * axii] = 0;
-        dataExtent[2 * axii + 1] = naxes[axii] - 1; // StringToInt(this->GetHeaderValue(("SlicerAstro.NAXIS" + IntToString(axii + 1)).c_str())) - 1;
-        origin[axii] = 0.0;
-        spacings[axii] = 1.0;
-    }
-
     this->SetDataExtent(dataExtent);
     this->SetDataSpacing(spacings);
     this->SetDataOrigin(origin);
+
+    vtkInformation *outInfo = outVec->GetInformationObject(0);
     outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 1);
     outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
 
-    //this->vtkMPIImageReader::ExecuteInformation();
-
-    if (fits_close_file(this->fptr, &this->ReadStatus))
+    if (ProcInfo->GetPartitionId() == 0)
     {
-        fits_report_error(stderr, this->ReadStatus);
+        cout << "# of processors: " << ProcInfo->GetNumberOfLocalPartitions() << endl;
+        cout << "FileName: " << FileName
+             << "\nImgType: " << imgtype
+             << "\nNAXIS: " << naxis
+             << "\nNAXIS = [" << naxes[0] << ", " << naxes[1]
+             << ", " << naxes[2] << "]"
+             << "\nDataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
+             << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]" << endl;
     }
 
     return 1;
 }
 
 //------------------------------------------------------------------------------
-// This function reads a data from a file.  The datas extent/axes
-// are assumed to be the same as the file extent/order.
-int vtkFitsReader::RequestData(  vtkInformation*, vtkInformationVector**,  vtkInformationVector* outVec)
+int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec)
 {
-    cerr << "RequestData" << endl;
-    vtkInformation* outInfo = outVec->GetInformationObject(0);
-    vtkImageData* output = vtkImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
-    vtkProcessModule *ParInfo;
+    int dataExtent[6] = {0, -1, 0, -1, 0, -1};
+    vtkInformation *outInfo = outVec->GetInformationObject(0);
+    outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), dataExtent);
 
-    int extent[6];
-    extent[0]=dataExtent[0];
-    extent[1]=dataExtent[1];
-    extent[2]=dataExtent[2];
-    extent[3]=dataExtent[3];
-    
-    int slices_pe=(dataExtent[5]-dataExtent[4])/ParInfo->GetNumberOfLocalPartitions();
-    int from=ParInfo->GetPartitionId()*slices_pe;
-    int to=(ParInfo->GetPartitionId()+1)*slices_pe;
-    extent[4]=from;
-    extent[5]=to;
-        
-    std::stringstream msg;
+    vtkImageData *outData = vtkImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+    outData->SetExtent(dataExtent);
 
-    msg<< "slices_pe " <<slices_pe<<" subext from rank "<< ParInfo->GetPartitionId() << " 0: " <<extent[0]<<" 1: "<<extent[1]<<" 2: "<<extent[2]<<" 3: "<<extent[3]<<" 4: "<<extent[4]<<" 5: "<<extent[5] <<endl;
-
-    //outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), extent);
-    output->SetExtent(extent);
-
-    if (ParInfo->GetPartitionId()==0)
+    vtkProcessModule *ProcInfo;
+    if (ProcInfo->GetPartitionId() == 0)
     {
-        msg<<"Num of Processors = "<<ParInfo->GetNumberOfLocalPartitions()<<endl;
-        msg<< "full from rank "<< ParInfo->GetPartitionId() << " 0: " <<dataExtent[0]<<" 1: "<<dataExtent[1]<<" 2: "<<dataExtent[2]<<" 3: "<<dataExtent[3]<<" 4: "<<dataExtent[4]<<" 5: "<<dataExtent[5] <<endl;
+        cout << "RequestData # of processors: " << ProcInfo->GetNumberOfLocalPartitions() << "\n";
     }
-
-    msg<< "subext from rank "<< ParInfo->GetPartitionId() << " 0: " <<extent[0]<<" 1: "<<extent[1]<<" 2: "<<extent[2]<<" 3: "<<extent[3]<<" 4: "<<extent[4]<<" 5: "<<extent[5] <<endl;
-
-    vtkImageData *data = this->AllocateOutputData(output, outInfo);
-
-    if (data == nullptr)
-    {
-        vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: "
-                         "data not allocated.");
-        return -1;
-    }
+    cout << "RequestData " << FileName << " (#" << ProcInfo->GetPartitionId() << ")\n"
+         << "\tDataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
+         << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]" << endl;
 
     if (this->GetFileName() == nullptr)
     {
-        vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: "
-                         "Either a FileName or FilePrefix must be specified.");
-        return -1;
+        vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ") "
+                                                       << "Either a FileName or FilePrefix must be specified.");
+        return 0;
     }
 
-    // Open the fits.  Yes, this means that the file is being opened
-    // twice: once by RequestInformation, and once here
-    if (fits_open_data(&this->fptr, this->GetFileName(), READONLY, &this->ReadStatus))
+    vtkImageData *data = this->AllocateOutputData(outData, outInfo);
+    if (data == nullptr)
     {
-        vtkErrorMacro("vtkFITSReader::ExecuteDataWithInformation: "
-                      "ERROR IN CFITSIO! Error reading "
-                      << this->GetFileName() << ":\n");
-        fits_report_error(stderr, this->ReadStatus);
-        return -1;
+        vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ") "
+                                                       << "ERROR: data not allocated");
+        return 0;
     }
 
+    int size = strlen(FileName) + 100;
+    char fn[size] = {0};
+    snprintf(fn, size, "%s[%d:%d, %d:%d, %d:%d]",
+             FileName, dataExtent[0] + 1, dataExtent[1] + 1, dataExtent[2] + 1,
+             dataExtent[3] + 1, dataExtent[4] + 1, dataExtent[5] + 1);
+
+    fitsfile *fptr;
+    int ReadStatus;
+    if (fits_open_data(&fptr, fn, READONLY, &ReadStatus))
+    {
+        vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
+                                                       << "ERROR IN CFITSIO! Error reading "
+                                                       << FileName << ":\n");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    // Get axis information
+    int maxaxis = 3;
+    int imgtype = 0;
+    int naxis = 0;
+    long naxes[maxaxis] = {0};
+    if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
+    {
+        vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
+                                                       << "ERROR IN CFITSIO! Error reading image param "
+                                                       << FileName << ":\n");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    // Get Data Pointer
     data->GetPointData()->GetScalars()->SetName("FITSImage");
-    // Get data pointer
     void *ptr = nullptr;
     ptr = data->GetPointData()->GetScalars()->GetVoidPointer(0);
     this->ComputeDataIncrements();
-    unsigned int naxes = data->GetDataDimension();
 
-    cerr << "naxes" << naxes << endl;
-    int naxe[naxes];
-/*  naxe[0]=dataExtent[1]-dataExtent[0];
-    naxe[1]=dataExtent[3]-dataExtent[2];
-    naxe[2]=dataExtent[5]-dataExtent[4];
-    data->SetDimensions(naxe);
-  */  
-
-    int dim = 1;
-    for (unsigned int axii = 0; axii < naxes; axii++)
+    long fpixel[3] = {1, 1, 1};
+    long long nels = naxes[0] * naxes[1] * naxes[2];
+    if (fits_read_pix(fptr, TFLOAT, fpixel, nels, NULL, ptr, NULL, &ReadStatus))
     {
-        dim *= naxe[axii];
-        msg<< naxe[axii]<<endl;
+        vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
+                                                       << "ERROR IN CFITSIO! Error reading pixels "
+                                                       << FileName << ":\n");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
     }
 
-//    long dim= (extent[1]-extent[0])*(extent[3]-extent[2])*(extent[5]-extent[4]);
-    int start_position=(naxe[0]*naxe[1]*extent[4])+1;
-    msg<< "i am the PE"<< ParInfo->GetPartitionId() << " and i read " <<dim<<" elements from "<< start_position<<" ("<<naxe[0]<<" * "<<naxe[1]<<" * "<<extent[4]<<")+1"<<endl;
-    msg<< ""<<endl;
-    cerr<<msg.str()<<endl;
+    /*
+        if (fits_read_img(this->fptr, TFLOAT, start_position, dim, &nullptrval, ptr, &anynullptr, &this->ReadStatus))
+        {
+            fits_report_error(stderr, this->ReadStatus);
+            vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: data is nullptr.");
+            return -1;
+        }
+    */
 
-    float nullptrval = NAN;
-    int anynullptr;
-    if (fits_read_img(this->fptr, TFLOAT, start_position, dim, &nullptrval, ptr, &anynullptr, &this->ReadStatus))
+    if (fits_close_file(fptr, &ReadStatus))
     {
-        fits_report_error(stderr, this->ReadStatus);
-        vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: data is nullptr.");
-        return -1;
-    }
-
-    if (fits_close_file(this->fptr, &this->ReadStatus))
-    {
-        vtkErrorMacro("vtkFITSReader::ExecuteDataWithInformation: ERROR IN CFITSIO! Error closing "
-                      << this->GetFileName() << ":\n");
-        fits_report_error(stderr, this->ReadStatus);
-                return -1;
-
+        vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
+                                                       << "ERROR IN CFITSIO! Error closing "
+                                                       << FileName << ":\n");
+        fits_report_error(stderr, ReadStatus);
+        // We should have axes information, so we do not abort (i.e. no return here)
     }
 
     return 1;
-}
-
-// Note: from cookbook.c in fitsio distribution.
-void vtkFitsReader::printerror(int status)
-{
-
-    cerr << "vtkFitsReader ERROR.";
-    if (status)
-    {
-        fits_report_error(stderr, status); /* print error report */
-        exit(status);                      /* terminate the program, returning error status */
-    }
-    return;
 }
