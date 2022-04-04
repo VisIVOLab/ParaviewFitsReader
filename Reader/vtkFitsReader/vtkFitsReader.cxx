@@ -70,8 +70,7 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     int maxaxis = 3;
     int imgtype = 0;
     int naxis = 0;
-    long naxes[maxaxis];// = {0};
-    memset( naxes, 0, maxaxis*sizeof(long) );
+    long naxes[maxaxis];
 
     if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
     {
@@ -163,17 +162,16 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     }
 
     int size = strlen(FileName) + 100;
-    char fn[size];// = {0};
-    memset( fn, 0, size*sizeof(char) );
+    char fn[size];
 
     snprintf(fn, size, "%s[%d:%d, %d:%d, %d:%d]",
              FileName, dataExtent[0] + 1, dataExtent[1] + 1, dataExtent[2] + 1,
              dataExtent[3] + 1, dataExtent[4] + 1, dataExtent[5] + 1);
 
-    cout <<fn<<endl;
+    cout << ProcInfo->GetPartitionId() << " is opening the FITS with the following string: " << fn << endl;
 
     fitsfile *fptr;
-    int ReadStatus;
+    int ReadStatus = 0;
     if (fits_open_data(&fptr, fn, READONLY, &ReadStatus))
     {
         vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
@@ -187,8 +185,7 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     int maxaxis = 3;
     int imgtype = 0;
     int naxis = 0;
-    long naxes[maxaxis];// = {0};
-    memset( naxes, 0, maxaxis*sizeof(long) );
+    long naxes[maxaxis];
 
     if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
     {
