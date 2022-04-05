@@ -14,8 +14,8 @@
 #include "vtkProcessModule.h"
 
 #include "vtkSMPTools.h"
-
-
+#include "vtkMultiThreader.h"
+#include "vtkSMPThreadLocal.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
@@ -117,12 +117,10 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 1);
     outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
 
-
-
     if (ProcInfo->GetPartitionId() == 0)
     {
         cout << "# of processors: " << ProcInfo->GetNumberOfLocalPartitions() << endl;
-        cout << "NumberOfThreads: "<< vtkSMPTools::GetEstimatedNumberOfThreads() << endl;
+        cout << "NumberOfThreads: " << vtkSMPTools::GetEstimatedNumberOfThreads() << endl;
         cout << "FileName: " << FileName
              << "\nImgType: " << imgtype
              << "\nNAXIS: " << naxis
@@ -212,6 +210,15 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
 
     long fpixel[3] = {1, 1, 1};
     long long nels = naxes[0] * naxes[1] * naxes[2];
+
+    cout << "NumberOfThreads in ReadData: " << vtkSMPTools::GetEstimatedNumberOfThreads() << endl;
+
+    vtkSMPTools::For(0, nels,
+                     [](vtkIdType start, vtkIdType end)
+                     {
+                         cout << " from " << start << " to " << end << " local_nele " << (end - start) << " " << endl;
+                     });
+
     if (fits_read_pix(fptr, TFLOAT, fpixel, nels, NULL, ptr, NULL, &ReadStatus))
     {
         vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
