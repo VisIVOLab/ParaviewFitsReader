@@ -14,8 +14,8 @@
 #include "vtkProcessModule.h"
 
 #include "vtkSMPTools.h"
-#include "vtkMultiThreader.h"
-#include "vtkSMPThreadLocal.h"
+
+
 
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
@@ -117,10 +117,12 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 1);
     outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
 
+
+
     if (ProcInfo->GetPartitionId() == 0)
     {
         cout << "# of processors: " << ProcInfo->GetNumberOfLocalPartitions() << endl;
-        cout << "NumberOfThreads: " << vtkSMPTools::GetEstimatedNumberOfThreads() << endl;
+        cout << "NumberOfThreads: "<< vtkSMPTools::GetEstimatedNumberOfThreads() << endl;
         cout << "FileName: " << FileName
              << "\nImgType: " << imgtype
              << "\nNAXIS: " << naxis
@@ -210,36 +212,14 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
 
     long fpixel[3] = {1, 1, 1};
     long long nels = naxes[0] * naxes[1] * naxes[2];
-
-    cout << "NumberOfThreads in ReadData: " << vtkSMPTools::GetEstimatedNumberOfThreads() << endl;
-
-    std::stringstream s1;
-
-    vtkSMPTools::For(0, nels,
-                     [&](vtkIdType start, vtkIdType end)
-                     {
-                         s1 << "from " << start << " to " << end << " local nele " << (end - start) << endl;
-
-                         if (fits_read_img(fptr, TFLOAT, start, (end - start), NULL, ptr, NULL, &ReadStatus))
-                         {
-                             fits_report_error(stderr, ReadStatus);
-                             vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: data is nullptr.");
-                             return -1;
-                         }
-                         return 1;
-                     });
-
-    cout << s1.str() << endl;
-    /*
-        if (fits_read_pix(fptr, TFLOAT, fpixel, nels, NULL, ptr, NULL, &ReadStatus))
-        {
-            vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
-                                                           << "ERROR IN CFITSIO! Error reading pixels "
-                                                           << FileName << ":\n");
-            fits_report_error(stderr, ReadStatus);
-            return 0;
-        }
-        */
+    if (fits_read_pix(fptr, TFLOAT, fpixel, nels, NULL, ptr, NULL, &ReadStatus))
+    {
+        vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
+                                                       << "ERROR IN CFITSIO! Error reading pixels "
+                                                       << FileName << ":\n");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
 
     /*
         if (fits_read_img(this->fptr, TFLOAT, start_position, dim, &nullptrval, ptr, &anynullptr, &this->ReadStatus))
