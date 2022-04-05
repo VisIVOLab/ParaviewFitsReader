@@ -120,7 +120,6 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     if (ProcInfo->GetPartitionId() == 0)
     {
         cout << "# of processors: " << ProcInfo->GetNumberOfLocalPartitions() << endl;
-        cout << "NumberOfThreads: " << vtkSMPTools::GetEstimatedNumberOfThreads() << endl;
         cout << "FileName: " << FileName
              << "\nImgType: " << imgtype
              << "\nNAXIS: " << naxis
@@ -148,6 +147,7 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     {
         cout << "RequestData # of processors: " << ProcInfo->GetNumberOfLocalPartitions() << "\n";
     }
+    cout << "RequestData # of threads: " << vtkSMPTools::GetEstimatedNumberOfThreads() << "\n";
     cout << "RequestData " << FileName << " (#" << ProcInfo->GetPartitionId() << ")\n"
          << "\tDataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
          << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]" << endl;
@@ -204,38 +204,29 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
 
     // Get Data Pointer
     data->GetPointData()->GetScalars()->SetName("FITSImage");
-    void *ptr = nullptr;
-    ptr = data->GetPointData()->GetScalars()->GetVoidPointer(0);
+    float *ptr = (float *)data->GetPointData()->GetScalars()->GetVoidPointer(0);
     this->ComputeDataIncrements();
 
-    long fpixel[3] = {1, 1, 1};
-    long long nels = naxes[0] * naxes[1] * naxes[2];
+    vtkIdType fpixel = 1;
+    vtkIdType nels = naxes[0] * naxes[1] * naxes[2];
 
-    cout << "NumberOfThreads in ReadData: " << vtkSMPTools::GetEstimatedNumberOfThreads() << endl;
-
-    vtkSMPTools::For(0, nels,
-                     [](vtkIdType start, vtkIdType end)
-                     {
-                         cout << " from " << start << " to " << end << " local_nele " << (end - start) << " " << endl;
-                     });
-
-    if (fits_read_pix(fptr, TFLOAT, fpixel, nels, NULL, ptr, NULL, &ReadStatus))
+    auto PartialRead = [this, fptr, ptr](vtkIdType first, vtkIdType last)
     {
-        vtkErrorMacro("vtkFitsReader::RequestData (# " << ProcInfo->GetPartitionId() << ")\n"
-                                                       << "ERROR IN CFITSIO! Error reading pixels "
-                                                       << FileName << ":\n");
-        fits_report_error(stderr, ReadStatus);
-        return 0;
-    }
+        cout << "vtkFitsReader::RequestData PartialRead range = [" << first << ", " << last << "]" << endl;
 
-    /*
-        if (fits_read_img(this->fptr, TFLOAT, start_position, dim, &nullptrval, ptr, &anynullptr, &this->ReadStatus))
+        long long nels = last - first + 1;
+        float *offset = ptr + first - 1;
+
+        int ReadStatus = 0;
+        if (fits_read_img(fptr, TFLOAT, first, nels, NULL, offset, NULL, &ReadStatus))
         {
-            fits_report_error(stderr, this->ReadStatus);
-            vtkErrorMacro(<< "vtkFITSReader::ExecuteDataWithInformation: data is nullptr.");
-            return -1;
+            vtkErrorMacro("vtkFitsReader::RequestData SMP::For ERROR IN CFITSIO!");
+            fits_report_error(stderr, ReadStatus);
+            // TODO If a thread fails, we must abort the read operation
         }
-    */
+    };
+
+    vtkSMPTools::For(fpixel, nels, PartialRead);
 
     if (fits_close_file(fptr, &ReadStatus))
     {
@@ -243,7 +234,7 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
                                                        << "ERROR IN CFITSIO! Error closing "
                                                        << FileName << ":\n");
         fits_report_error(stderr, ReadStatus);
-        // We should have axes information, so we do not abort (i.e. no return here)
+        // We should have read all the data, so we do not abort (i.e. no return failure here)
     }
 
     return 1;
