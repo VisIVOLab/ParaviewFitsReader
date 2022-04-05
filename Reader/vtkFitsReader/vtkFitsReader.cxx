@@ -13,6 +13,10 @@
 #include "vtkErrorCode.h"
 #include "vtkProcessModule.h"
 
+#include "vtkSMPTools.h"
+
+
+
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 
@@ -29,6 +33,7 @@ vtkStandardNewMacro(vtkFitsReader);
 vtkFitsReader::vtkFitsReader()
 {
     this->FileName = NULL;
+    vtkSMPTools::Initialize();
 }
 
 //----------------------------------------------------------------------------
@@ -112,9 +117,12 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 1);
     outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
 
+
+
     if (ProcInfo->GetPartitionId() == 0)
     {
         cout << "# of processors: " << ProcInfo->GetNumberOfLocalPartitions() << endl;
+        cout << "NumberOfThreads: "<< vtkSMPTools::GetEstimatedNumberOfThreads() << endl;
         cout << "FileName: " << FileName
              << "\nImgType: " << imgtype
              << "\nNAXIS: " << naxis
