@@ -7,7 +7,10 @@
 #ifndef __vtkFitsReader_h
 #define __vtkFitsReader_h
 
-#include "vtkMPIImageReader.h"
+#include <vtkMPIImageReader.h>
+
+#include <map>
+#include <string>
 
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
@@ -56,5 +59,18 @@ protected:
 private:
     vtkFitsReader(const vtkFitsReader &) = delete;
     void operator=(const vtkFitsReader &) = delete;
+
+    /**
+     * FITS Header
+     */
+    std::map<std::string, std::string> FITSHeader;
+
+    /**
+     * @brief   Read the header and store the key-value pairs in FITSHeader.
+     *          This function ignores HISTORY, COMMENT and empty keywords.
+     *
+     * @return  0 on success, greater than 0 otherwise.
+     */
+    int ReadFITSHeader();
 };
 #endif

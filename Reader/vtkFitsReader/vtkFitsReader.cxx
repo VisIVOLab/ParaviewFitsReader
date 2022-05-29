@@ -15,6 +15,7 @@
 #include <vtkPointData.h>
 #include <vtkProcessModule.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
+#include <vtkStringArray.h>
 
 #include <cmath>
 #include <cstdlib>
@@ -25,7 +26,6 @@
 // vtkCxxRevisionMacro(vtkFitsReader, "$Revision: 1.1 $");
 vtkStandardNewMacro(vtkFitsReader);
 
-//----------------------------------------------------------------------------
 vtkFitsReader::vtkFitsReader()
 {
     this->FileName = NULL;
@@ -34,25 +34,68 @@ vtkFitsReader::vtkFitsReader()
 #endif
 }
 
-//----------------------------------------------------------------------------
 vtkFitsReader::~vtkFitsReader()
 {
     this->SetFileName(0);
 }
 
-//------------------------------------------------------------------------------
 void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
 {
     this->Superclass::PrintSelf(os, indent);
 }
 
-//------------------------------------------------------------------------------
 int vtkFitsReader::CanReadFile(const char *fname)
 {
     return 1;
 }
 
-//------------------------------------------------------------------------------
+int vtkFitsReader::ReadFITSHeader()
+{
+    this->FITSHeader.clear();
+
+    fitsfile *fptr;
+    int status = 0;
+    if (fits_open_data(&fptr, FileName, READONLY, &status))
+    {
+        fits_report_error(stderr, status);
+        return 1;
+    }
+
+    // Get number of keys in header
+    int nKeys = 0;
+    if (fits_get_hdrspace(fptr, &nKeys, 0, &status))
+    {
+        fits_report_error(stderr, status);
+        return 2;
+    }
+
+    // Get header keys and values
+    char name[80];
+    char value[80];
+    for (int i = 1; i <= nKeys; ++i)
+    {
+        if (fits_read_keyn(fptr, i, name, value, 0, &status))
+        {
+            fits_report_error(stderr, status);
+            return 3;
+        }
+
+        // Skip empty names, HISTORY and COMMENT keyworks
+        if ((strlen(name) == 0) || (strcasecmp(name, "HISTORY") == 0) ||
+            (strcasecmp(name, "COMMENT") == 0))
+        {
+            continue;
+        }
+
+        std::string sName(name);
+        std::string sValue(value);
+        this->FITSHeader.emplace(sName, sValue);
+    }
+
+    fits_close_file(fptr, &status);
+    return 0;
+}
+
 int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec)
 {
     vtkProcessModule *ProcInfo;
@@ -112,6 +155,7 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
 
     if (ProcId == 0)
     {
+        ReadFITSHeader();
         vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << ")\n# of processors: " << ProcInfo->GetNumberOfLocalPartitions()
                       << "\nFileName: " << FileName
                       << "\nImgType: " << imgtype
@@ -124,7 +168,6 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     return 1;
 }
 
-//------------------------------------------------------------------------------
 int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec)
 {
     vtkProcessModule *ProcInfo;
@@ -200,6 +243,26 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
         vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_close_file");
         fits_report_error(stderr, ReadStatus);
         // We should have axes information, so we do not abort (i.e. no return failure here)
+    }
+
+    if (ProcId == 0)
+    {
+        // Put the fits header into FieldData as a string array
+        // using the following indices structure:
+        // [2i] = keyword
+        // [2i + 1] = value
+        vtkNew<vtkStringArray> header;
+        header->SetName("FITSHeader");
+        header->SetNumberOfValues(this->FITSHeader.size() * 2);
+        int i = 0;
+        for (const auto &keyword : this->FITSHeader)
+        {
+            header->SetValue(i++, keyword.first);
+            header->SetValue(i++, keyword.second);
+        }
+
+        header->Print(std::cout);
+        data->GetFieldData()->AddArray(header);
     }
 
     return 1;
