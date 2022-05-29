@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(FitsReader)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 find_package(ParaView REQUIRED)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
@@ -19,8 +21,7 @@ paraview_plugin_scan(
 foreach (module IN LISTS required_modules)
   if (NOT TARGET "${module}")
     message(#FATAL_ERROR
-      "Skipping example ${CMAKE_PROJECT_NAME}: Missing required module: "
-      "${module}")
+      "Skipping ${CMAKE_PROJECT_NAME}: Missing required module: ${module}")
     return ()
   endif ()
 endforeach ()
