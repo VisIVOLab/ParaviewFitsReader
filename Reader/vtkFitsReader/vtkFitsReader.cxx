@@ -261,7 +261,6 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
             header->SetValue(i++, keyword.second);
         }
 
-        header->Print(std::cout);
         data->GetFieldData()->AddArray(header);
     }
 
