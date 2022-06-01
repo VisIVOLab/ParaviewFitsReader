@@ -32,7 +32,6 @@
 vtkStandardNewMacro(vtkFitsReader);
 
 vtkCxxSetObjectMacro(vtkFitsReader, MetaData, vtkTable);
-
 vtkInformationKeyMacro(vtkFitsReader, META_DATA, DataObjectMetaData);
 
 vtkFitsReader::vtkFitsReader()
@@ -48,6 +47,11 @@ vtkFitsReader::vtkFitsReader()
 vtkFitsReader::~vtkFitsReader()
 {
     this->SetFileName(0);
+    if (this->MetaData)
+    {
+      this->MetaData->Delete();
+      this->MetaData = nullptr;
+    }
 }
 
 void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
@@ -62,6 +66,15 @@ int vtkFitsReader::CanReadFile(const char *fname)
 
 int vtkFitsReader::ReadFITSHeader()
 {
+    vtkNew<vtkTable> table;
+    vtkNew<vtkStringArray> hName;
+    hName->SetName("Name");
+    table->AddColumn(hName);
+
+    vtkNew<vtkStringArray> hValue;
+    hValue->SetName("Value");
+    table->AddColumn(hValue);
+
     this->FITSHeader.clear();
 
     fitsfile *fptr;
@@ -101,9 +114,25 @@ int vtkFitsReader::ReadFITSHeader()
         std::string sName(name);
         std::string sValue(value);
         this->FITSHeader.emplace(sName, sValue);
-        
+        std::pair<std::string, std::string> result(sName, sValue);
+        results.push_back(result);
         
     }
+    
+    // Fill in the table with some example values
+      size_t numKeys = results.size();
+      table->SetNumberOfRows(static_cast<vtkIdType>(numKeys));
+      for (size_t i = 0; i < numKeys; ++i)
+      {
+        table->SetValue(static_cast<vtkIdType>(i), 0, results[i].first);
+        table->SetValue(static_cast<vtkIdType>(i), 1, results[i].second);
+        std::cout << "Put " << results[i].first << " " << results[i].second
+                  << " in the table." << std::endl;
+          
+         // table->SetValue(static_cast<vtkIdType>(j), 0, sName);
+         // table->SetValue(static_cast<vtkIdType>(j), 1, sValue);
+          
+      }
 
     fits_close_file(fptr, &status);
     return 0;

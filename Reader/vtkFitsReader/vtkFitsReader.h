@@ -11,9 +11,13 @@
 
 #include <map>
 #include <string>
+#include <vector>
+#include <vector>
+
 
 class vtkInformationDataObjectMetaDataKey;
 class vtkTable;
+class vtkStdString;
 
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
@@ -73,6 +77,7 @@ private:
      * FITS Header
      */
     std::map<std::string, std::string> FITSHeader;
+    std::vector<std::pair<vtkStdString, vtkStdString>> results;
 
     /**
      * @brief   Read the header and store the key-value pairs in FITSHeader.
