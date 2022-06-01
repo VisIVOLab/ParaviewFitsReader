@@ -126,8 +126,8 @@ int vtkFitsReader::ReadFITSHeader()
       {
         table->SetValue(static_cast<vtkIdType>(i), 0, results[i].first);
         table->SetValue(static_cast<vtkIdType>(i), 1, results[i].second);
-        std::cout << "Put " << results[i].first << " " << results[i].second
-                  << " in the table." << std::endl;
+          vtkDebugMacro( << "Put " << results[i].first << " " << results[i].second
+                  << " in the table.");
           
          // table->SetValue(static_cast<vtkIdType>(j), 0, sName);
          // table->SetValue(static_cast<vtkIdType>(j), 1, sValue);
