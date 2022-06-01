@@ -21,7 +21,6 @@
 #include "vtkInformationDataObjectMetaDataKey.h"
 #include "vtkTable.h"
 
-
 #include <cmath>
 #include <cstdlib>
 #include <sstream>
@@ -49,8 +48,8 @@ vtkFitsReader::~vtkFitsReader()
     this->SetFileName(0);
     if (this->MetaData)
     {
-      this->MetaData->Delete();
-      this->MetaData = nullptr;
+        this->MetaData->Delete();
+        this->MetaData = nullptr;
     }
 }
 
@@ -116,23 +115,23 @@ int vtkFitsReader::ReadFITSHeader()
         this->FITSHeader.emplace(sName, sValue);
         std::pair<std::string, std::string> result(sName, sValue);
         results.push_back(result);
-        
     }
-    
+
     // Fill in the table with some example values
-      size_t numKeys = results.size();
-      table->SetNumberOfRows(static_cast<vtkIdType>(numKeys));
-      for (size_t i = 0; i < numKeys; ++i)
-      {
+    size_t numKeys = results.size();
+    table->SetNumberOfRows(static_cast<vtkIdType>(numKeys));
+    for (size_t i = 0; i < numKeys; ++i)
+    {
         table->SetValue(static_cast<vtkIdType>(i), 0, results[i].first);
         table->SetValue(static_cast<vtkIdType>(i), 1, results[i].second);
-          vtkDebugMacro( << "Put " << results[i].first << " " << results[i].second
-                  << " in the table.");
-          
-         // table->SetValue(static_cast<vtkIdType>(j), 0, sName);
-         // table->SetValue(static_cast<vtkIdType>(j), 1, sValue);
-          
-      }
+        vtkDebugMacro(<< "Put " << results[i].first << " " << results[i].second
+                      << " in the table.");
+
+        // table->SetValue(static_cast<vtkIdType>(j), 0, sName);
+        // table->SetValue(static_cast<vtkIdType>(j), 1, sValue);
+    }
+
+    SetMetaData(table);
 
     fits_close_file(fptr, &status);
     return 0;
@@ -195,10 +194,8 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 1);
     outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
 
-    
     if (ProcId == 0)
     {
-        
 
         ReadFITSHeader();
         vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << ")\n# of processors: " << ProcInfo->GetNumberOfLocalPartitions()
@@ -208,15 +205,14 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
                       << "\nNAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
                       << "\nDataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
                       << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
-        
-        
+
         if (this->MetaData)
         {
-          outVec->GetInformationObject(0)->Set(META_DATA(), this->MetaData);
+            vtkDebugMacro("Setting metadata in the Information Object");
+            outVec->GetInformationObject(0)->Set(META_DATA(), this->MetaData);
         }
-        
     }
-    
+
     return 1;
 }
 
@@ -296,7 +292,7 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
         fits_report_error(stderr, ReadStatus);
         // We should have axes information, so we do not abort (i.e. no return failure here)
     }
-
+    /*
     if (ProcId == 0)
     {
         // Put the fits header into FieldData as a string array
@@ -314,13 +310,14 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
         }
 
         data->GetFieldData()->AddArray(header);
-        
+
         vtkInformation* info = header->GetInformation();
         vtkInformationStringKey* TestStringKey = vtkInformationStringKey::MakeKey("CRVAL1", "header");
         vtkInformationStringKey* TestStringKey2 = vtkInformationStringKey::MakeKey("CRVAL2", "header");
         info->Set(TestStringKey,"valcrval1");
         info->Set(TestStringKey2,"valcrval2");
     }
- 
+     */
+
     return 1;
 }
