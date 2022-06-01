@@ -12,6 +12,9 @@
 #include <map>
 #include <string>
 
+class vtkInformationDataObjectMetaDataKey;
+class vtkTable;
+
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
 public:
@@ -45,6 +48,10 @@ public:
     vtkSetMacro(NumberOfComponents, int);
     vtkGetMacro(NumberOfComponents, int);
 
+    void SetMetaData(vtkTable*);
+
+    static vtkInformationDataObjectMetaDataKey* META_DATA();
+    
 protected:
     vtkFitsReader();
     ~vtkFitsReader() override;
@@ -55,7 +62,9 @@ protected:
 
     int RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
     int RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
-
+    
+    vtkTable* MetaData;
+    
 private:
     vtkFitsReader(const vtkFitsReader &) = delete;
     void operator=(const vtkFitsReader &) = delete;

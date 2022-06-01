@@ -16,6 +16,11 @@
 #include <vtkProcessModule.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
 #include <vtkStringArray.h>
+#include <vtkInformationStringKey.h>
+
+#include "vtkInformationDataObjectMetaDataKey.h"
+#include "vtkTable.h"
+
 
 #include <cmath>
 #include <cstdlib>
@@ -26,9 +31,15 @@
 // vtkCxxRevisionMacro(vtkFitsReader, "$Revision: 1.1 $");
 vtkStandardNewMacro(vtkFitsReader);
 
+vtkCxxSetObjectMacro(vtkFitsReader, MetaData, vtkTable);
+
+vtkInformationKeyMacro(vtkFitsReader, META_DATA, DataObjectMetaData);
+
 vtkFitsReader::vtkFitsReader()
 {
     this->FileName = NULL;
+    this->MetaData = nullptr;
+
 #ifndef NDEBUG
     this->DebugOn();
 #endif
@@ -90,6 +101,8 @@ int vtkFitsReader::ReadFITSHeader()
         std::string sName(name);
         std::string sValue(value);
         this->FITSHeader.emplace(sName, sValue);
+        
+        
     }
 
     fits_close_file(fptr, &status);
@@ -153,8 +166,11 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 1);
     outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
 
+    
     if (ProcId == 0)
     {
+        
+
         ReadFITSHeader();
         vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << ")\n# of processors: " << ProcInfo->GetNumberOfLocalPartitions()
                       << "\nFileName: " << FileName
@@ -163,8 +179,15 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
                       << "\nNAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
                       << "\nDataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
                       << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
+        
+        
+        if (this->MetaData)
+        {
+          outVec->GetInformationObject(0)->Set(META_DATA(), this->MetaData);
+        }
+        
     }
-
+    
     return 1;
 }
 
@@ -262,7 +285,13 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
         }
 
         data->GetFieldData()->AddArray(header);
+        
+        vtkInformation* info = header->GetInformation();
+        vtkInformationStringKey* TestStringKey = vtkInformationStringKey::MakeKey("CRVAL1", "header");
+        vtkInformationStringKey* TestStringKey2 = vtkInformationStringKey::MakeKey("CRVAL2", "header");
+        info->Set(TestStringKey,"valcrval1");
+        info->Set(TestStringKey2,"valcrval2");
     }
-
+ 
     return 1;
 }
