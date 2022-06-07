@@ -100,6 +100,15 @@ int vtkFitsReader::ReadFITSHeader()
         results.push_back(result);
     }
 
+    size_t numKeys = results.size();
+    table->SetNumberOfRows(static_cast<vtkIdType>(numKeys));
+    for (size_t i = 0; i < numKeys; ++i)
+    {
+
+        table->SetValue(static_cast<vtkIdType>(i), 0, results[i].first);
+        table->SetValue(static_cast<vtkIdType>(i), 1, results[i].second);
+    }
+
     fits_close_file(fptr, &status);
     return 0;
 }
