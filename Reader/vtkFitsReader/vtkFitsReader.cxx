@@ -16,10 +16,9 @@
 #include <vtkProcessModule.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
 #include <vtkStringArray.h>
-#include <vtkInformationStringKey.h>
-
-#include "vtkInformationDataObjectMetaDataKey.h"
 #include "vtkTable.h"
+
+#include <vtkInformationStringKey.h>
 
 #include <cmath>
 #include <cstdlib>
@@ -30,13 +29,10 @@
 // vtkCxxRevisionMacro(vtkFitsReader, "$Revision: 1.1 $");
 vtkStandardNewMacro(vtkFitsReader);
 
-vtkCxxSetObjectMacro(vtkFitsReader, MetaData, vtkTable);
-vtkInformationKeyMacro(vtkFitsReader, META_DATA, DataObjectMetaData);
-
 vtkFitsReader::vtkFitsReader()
 {
     this->FileName = NULL;
-    this->MetaData = nullptr;
+    this->SetNumberOfOutputPorts(2);
 
 #ifndef NDEBUG
     this->DebugOn();
@@ -46,11 +42,6 @@ vtkFitsReader::vtkFitsReader()
 vtkFitsReader::~vtkFitsReader()
 {
     this->SetFileName(0);
-    if (this->MetaData)
-    {
-        this->MetaData->Delete();
-        this->MetaData = nullptr;
-    }
 }
 
 void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
@@ -65,7 +56,6 @@ int vtkFitsReader::CanReadFile(const char *fname)
 
 int vtkFitsReader::ReadFITSHeader()
 {
-    vtkNew<vtkTable> table;
     vtkNew<vtkStringArray> hName;
     hName->SetName("Name");
     table->AddColumn(hName);
@@ -73,8 +63,6 @@ int vtkFitsReader::ReadFITSHeader()
     vtkNew<vtkStringArray> hValue;
     hValue->SetName("Value");
     table->AddColumn(hValue);
-
-    this->FITSHeader.clear();
 
     fitsfile *fptr;
     int status = 0;
@@ -95,6 +83,9 @@ int vtkFitsReader::ReadFITSHeader()
     // Get header keys and values
     char name[80];
     char value[80];
+
+    std::vector<std::pair<vtkStdString, vtkStdString>> results;
+
     for (int i = 1; i <= nKeys; ++i)
     {
         if (fits_read_keyn(fptr, i, name, value, 0, &status))
@@ -103,35 +94,11 @@ int vtkFitsReader::ReadFITSHeader()
             return 3;
         }
 
-        // Skip empty names, HISTORY and COMMENT keyworks
-        if ((strlen(name) == 0) || (strcasecmp(name, "HISTORY") == 0) ||
-            (strcasecmp(name, "COMMENT") == 0))
-        {
-            continue;
-        }
-
         std::string sName(name);
         std::string sValue(value);
-        this->FITSHeader.emplace(sName, sValue);
         std::pair<std::string, std::string> result(sName, sValue);
         results.push_back(result);
     }
-
-    // Fill in the table with some example values
-    size_t numKeys = results.size();
-    table->SetNumberOfRows(static_cast<vtkIdType>(numKeys));
-    for (size_t i = 0; i < numKeys; ++i)
-    {
-        table->SetValue(static_cast<vtkIdType>(i), 0, results[i].first);
-        table->SetValue(static_cast<vtkIdType>(i), 1, results[i].second);
-        vtkDebugMacro(<< "Put " << results[i].first << " " << results[i].second
-                      << " in the table.");
-
-        // table->SetValue(static_cast<vtkIdType>(j), 0, sName);
-        // table->SetValue(static_cast<vtkIdType>(j), 1, sValue);
-    }
-
-    SetMetaData(table);
 
     fits_close_file(fptr, &status);
     return 0;
@@ -205,12 +172,6 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
                       << "\nNAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
                       << "\nDataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
                       << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
-
-        if (this->MetaData)
-        {
-            vtkDebugMacro("Setting metadata in the Information Object");
-            outVec->GetInformationObject(0)->Set(META_DATA(), this->MetaData);
-        }
     }
 
     return 1;
@@ -292,32 +253,27 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
         fits_report_error(stderr, ReadStatus);
         // We should have axes information, so we do not abort (i.e. no return failure here)
     }
-    /*
+
     if (ProcId == 0)
     {
-        // Put the fits header into FieldData as a string array
-        // using the following indices structure:
-        // [2i] = keyword
-        // [2i + 1] = value
-        vtkNew<vtkStringArray> header;
-        header->SetName("FITSHeader");
-        header->SetNumberOfValues(this->FITSHeader.size() * 2);
-        int i = 0;
-        for (const auto &keyword : this->FITSHeader)
-        {
-            header->SetValue(i++, keyword.first);
-            header->SetValue(i++, keyword.second);
-        }
-
-        data->GetFieldData()->AddArray(header);
-
-        vtkInformation* info = header->GetInformation();
-        vtkInformationStringKey* TestStringKey = vtkInformationStringKey::MakeKey("CRVAL1", "header");
-        vtkInformationStringKey* TestStringKey2 = vtkInformationStringKey::MakeKey("CRVAL2", "header");
-        info->Set(TestStringKey,"valcrval1");
-        info->Set(TestStringKey2,"valcrval2");
+        auto output = vtkTable::GetData(outVec, 1);
+        output->DeepCopy(table);
     }
-     */
+
+    return 1;
+}
+
+int vtkFitsReader::FillOutputPortInformation(int port, vtkInformation *info)
+{
+    switch (port)
+    {
+    case 0:
+        info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkImageData");
+        break;
+    case 1:
+        info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkTable");
+        break;
+    }
 
     return 1;
 }

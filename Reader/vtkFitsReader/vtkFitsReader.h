@@ -14,10 +14,11 @@
 #include <vector>
 #include <vector>
 
-
-class vtkInformationDataObjectMetaDataKey;
 class vtkTable;
 class vtkStdString;
+
+#include "vtkTable.h"
+#include "vtkNew.h"
 
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
@@ -52,10 +53,6 @@ public:
     vtkSetMacro(NumberOfComponents, int);
     vtkGetMacro(NumberOfComponents, int);
 
-    void SetMetaData(vtkTable*);
-
-    static vtkInformationDataObjectMetaDataKey* META_DATA();
-    
 protected:
     vtkFitsReader();
     ~vtkFitsReader() override;
@@ -66,9 +63,8 @@ protected:
 
     int RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
     int RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
-    
-    vtkTable* MetaData;
-    
+    int FillOutputPortInformation(int port, vtkInformation *info) override;
+
 private:
     vtkFitsReader(const vtkFitsReader &) = delete;
     void operator=(const vtkFitsReader &) = delete;
@@ -76,11 +72,10 @@ private:
     /**
      * FITS Header
      */
-    std::map<std::string, std::string> FITSHeader;
-    std::vector<std::pair<vtkStdString, vtkStdString>> results;
+    vtkNew<vtkTable> table;
 
     /**
-     * @brief   Read the header and store the key-value pairs in FITSHeader.
+     * @brief   Read the header and store the key-value pairs in g.
      *          This function ignores HISTORY, COMMENT and empty keywords.
      *
      * @return  0 on success, greater than 0 otherwise.
