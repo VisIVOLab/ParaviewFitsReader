@@ -84,7 +84,7 @@ int vtkFitsReader::ReadFITSHeader()
     char name[80];
     char value[80];
 
-    std::vector<std::pair<vtkStdString, vtkStdString>> results;
+    table->SetNumberOfRows(static_cast<vtkIdType>(nKeys));
 
     for (int i = 1; i <= nKeys; ++i)
     {
@@ -96,17 +96,9 @@ int vtkFitsReader::ReadFITSHeader()
 
         std::string sName(name);
         std::string sValue(value);
-        std::pair<std::string, std::string> result(sName, sValue);
-        results.push_back(result);
-    }
 
-    size_t numKeys = results.size();
-    table->SetNumberOfRows(static_cast<vtkIdType>(numKeys));
-    for (size_t i = 0; i < numKeys; ++i)
-    {
-
-        table->SetValue(static_cast<vtkIdType>(i), 0, results[i].first);
-        table->SetValue(static_cast<vtkIdType>(i), 1, results[i].second);
+        table->SetValue(static_cast<vtkIdType>(i - 1), 0, vtkVariant(sName));
+        table->SetValue(static_cast<vtkIdType>(i - 1), 1, vtkVariant(sValue));
     }
 
     fits_close_file(fptr, &status);
