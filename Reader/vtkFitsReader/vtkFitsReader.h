@@ -8,17 +8,14 @@
 #define __vtkFitsReader_h
 
 #include <vtkMPIImageReader.h>
+#include <vtkNew.h>
+#include <vtkTable.h>
 
 #include <map>
 #include <string>
 #include <vector>
-#include <vector>
 
 class vtkTable;
-class vtkStdString;
-
-#include "vtkTable.h"
-#include "vtkNew.h"
 
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
@@ -67,10 +64,11 @@ protected:
 
 private:
     vtkFitsReader(const vtkFitsReader &) = delete;
-    void operator=(const vtkFitsReader &) = delete;
+    vtkFitsReader &operator=(const vtkFitsReader &) = delete;
 
     /**
-     * FITS Header
+     * @brief FITS Header
+     *
      */
     vtkNew<vtkTable> table;
 

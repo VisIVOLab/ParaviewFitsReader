@@ -10,15 +10,13 @@
 #include <vtkFloatArray.h>
 #include <vtkImageData.h>
 #include <vtkInformation.h>
+#include <vtkInformationStringKey.h>
 #include <vtkInformationVector.h>
 #include <vtkObjectFactory.h>
 #include <vtkPointData.h>
 #include <vtkProcessModule.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
 #include <vtkStringArray.h>
-#include "vtkTable.h"
-
-#include <vtkInformationStringKey.h>
 
 #include <cmath>
 #include <cstdlib>
@@ -26,7 +24,6 @@
 #include <string>
 #include <vector>
 
-// vtkCxxRevisionMacro(vtkFitsReader, "$Revision: 1.1 $");
 vtkStandardNewMacro(vtkFitsReader);
 
 vtkFitsReader::vtkFitsReader()
@@ -164,7 +161,6 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
 
     if (ProcId == 0)
     {
-
         ReadFITSHeader();
         vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << ")\n# of processors: " << ProcInfo->GetNumberOfLocalPartitions()
                       << "\nFileName: " << FileName
@@ -239,9 +235,9 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     float *ptr = static_cast<float *>(data->GetPointData()->GetScalars()->GetVoidPointer(0));
     this->ComputeDataIncrements();
 
-    long fpixel[3] = {1, 1, 1};
+    long fpixel = 1;
     long long nels = naxes[0] * naxes[1] * naxes[2];
-    if (fits_read_pix(fptr, TFLOAT, fpixel, nels, 0, ptr, 0, &ReadStatus))
+    if (fits_read_img(fptr, TFLOAT, fpixel, nels, 0, ptr, 0, &ReadStatus))
     {
         vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_read_pix");
         fits_report_error(stderr, ReadStatus);
