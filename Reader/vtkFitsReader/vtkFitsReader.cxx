@@ -237,12 +237,27 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
 
     long fpixel = 1;
     long long nels = naxes[0] * naxes[1] * naxes[2];
-    if (fits_read_img(fptr, TFLOAT, fpixel, nels, 0, ptr, 0, &ReadStatus))
+    char *nullarray = new char[nels];
+    int anynul = 0;
+    if (fits_read_imgnull(fptr, TFLOAT, fpixel, nels, ptr, nullarray, &anynul, &ReadStatus))
     {
-        vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_read_pix");
+        vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_read_imgnull");
         fits_report_error(stderr, ReadStatus);
         return 0;
     }
+
+    // Replace null values
+    if (anynul)
+    {
+        for (long long i = 0; i < nels; ++i)
+        {
+            if (nullarray[i] == 1)
+            {
+                ptr[i] = 0;
+            }
+        }
+    }
+    delete[] nullarray;
 
     if (fits_close_file(fptr, &ReadStatus))
     {
