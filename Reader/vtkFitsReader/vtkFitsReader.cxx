@@ -20,9 +20,11 @@
 
 #include <cmath>
 #include <cstdlib>
-#include <sstream>
 #include <string>
 #include <vector>
+
+#include <iostream>
+using namespace std;
 
 vtkStandardNewMacro(vtkFitsReader);
 
@@ -201,10 +203,9 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     }
 
     // Create the string to open the sub-region of the fits file
-    std::stringstream ss;
-    std::string fns;
-    ss << FileName << "[" << (dataExtent[0] + 1) << ":" << (dataExtent[1] + 1) << "," << (dataExtent[2] + 1) << ":" << (dataExtent[3] + 1) << "," << (dataExtent[4] + 1) << ":" << (dataExtent[5] + 1) << "]";
-    ss >> fns;
+    string fns(FileName);
+    fns += "[" + to_string(dataExtent[0] + 1) + ":" + to_string(dataExtent[1] + 1) + "," + to_string(dataExtent[2] + 1) + ":" + to_string(dataExtent[3] + 1) + "," + to_string(dataExtent[4] + 1) + ":" + to_string(dataExtent[5] + 1) + "]";
+
     vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << "): RequestData is opening the FITS with the following string: " << fns);
 
     fitsfile *fptr;
