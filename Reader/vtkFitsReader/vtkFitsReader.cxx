@@ -201,16 +201,15 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     }
 
     // Create the string to open the sub-region of the fits file
-    int size = strlen(FileName) * 2;
-    char fn[size];
-    snprintf(fn, size, "%s[%d:%d, %d:%d, %d:%d]",
-             FileName, dataExtent[0] + 1, dataExtent[1] + 1, dataExtent[2] + 1,
-             dataExtent[3] + 1, dataExtent[4] + 1, dataExtent[5] + 1);
-    vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << "): RequestData is opening the FITS with the following string: " << fn);
+    std::stringstream ss;
+    std::string fns;
+    ss << FileName << "[" << (dataExtent[0] + 1) << ":" << (dataExtent[1] + 1) << "," << (dataExtent[2] + 1) << ":" << (dataExtent[3] + 1) << "," << (dataExtent[4] + 1) << ":" << (dataExtent[5] + 1) << "]";
+    ss >> fns;
+    vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << "): RequestData is opening the FITS with the following string: " << fns);
 
     fitsfile *fptr;
     int ReadStatus = 0;
-    if (fits_open_data(&fptr, fn, READONLY, &ReadStatus))
+    if (fits_open_data(&fptr, fns.c_str(), READONLY, &ReadStatus))
     {
         vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_open_data");
         fits_report_error(stderr, ReadStatus);
