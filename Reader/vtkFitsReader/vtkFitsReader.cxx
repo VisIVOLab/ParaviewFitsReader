@@ -270,8 +270,12 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
 
         if (ProcId == 0)
         {
-            // Proc #0 outputs the entire FITS Header
+            // Proc #0 outputs the entire FITS Header and the number of partial values
             output->DeepCopy(table);
+            vtkNew<vtkVariantArray> numberOfValues;
+            numberOfValues->InsertNextValue(vtkVariant(std::string("MSn")));
+            numberOfValues->InsertNextValue(vtkVariant(ProcInfo->GetNumberOfLocalPartitions()));
+            output->InsertNextRow(numberOfValues);
         }
         else
         {
