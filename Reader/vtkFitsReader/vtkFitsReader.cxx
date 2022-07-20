@@ -17,14 +17,13 @@
 #include <vtkProcessModule.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
 #include <vtkStringArray.h>
+#include <vtkVariantArray.h>
 
 #include <cmath>
 #include <cstdlib>
+#include <iostream>
 #include <string>
 #include <vector>
-
-#include <iostream>
-using namespace std;
 
 vtkStandardNewMacro(vtkFitsReader);
 
@@ -80,11 +79,9 @@ int vtkFitsReader::ReadFITSHeader()
     }
 
     // Get header keys and values
-    char name[80];
-    char value[80];
-
+    char name[FLEN_KEYWORD];
+    char value[FLEN_VALUE];
     table->SetNumberOfRows(static_cast<vtkIdType>(nKeys));
-
     for (int i = 1; i <= nKeys; ++i)
     {
         if (fits_read_keyn(fptr, i, name, value, 0, &status))
@@ -164,12 +161,13 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     if (ProcId == 0)
     {
         ReadFITSHeader();
-        vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << ")\n# of processors: " << ProcInfo->GetNumberOfLocalPartitions()
-                      << "\nFileName: " << FileName
-                      << "\nImgType: " << imgtype
-                      << "\nNAXIS: " << naxis
-                      << "\nNAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
-                      << "\nDataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
+        vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << ")"
+                      << "\n  # of processors: " << ProcInfo->GetNumberOfLocalPartitions()
+                      << "\n  FileName: " << FileName
+                      << "\n  ImgType: " << imgtype
+                      << "\n  NAXIS: " << naxis
+                      << "\n  NAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
+                      << "\n  DataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
                       << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
     }
 
@@ -192,7 +190,7 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     vtkInformation *outInfo = outVec->GetInformationObject(0);
     outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), dataExtent);
     vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << "): RequestData " << FileName
-                  << "\n\tDataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
+                  << " - DataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
                   << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
 
     vtkImageData *data = this->AllocateOutputData(outInfo->Get(vtkDataObject::DATA_OBJECT()), outInfo);
@@ -202,29 +200,11 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
         return 0;
     }
 
-    // Create the string to open the sub-region of the fits file
-    string fns(FileName);
-    fns += "[" + to_string(dataExtent[0] + 1) + ":" + to_string(dataExtent[1] + 1) + "," + to_string(dataExtent[2] + 1) + ":" + to_string(dataExtent[3] + 1) + "," + to_string(dataExtent[4] + 1) + ":" + to_string(dataExtent[5] + 1) + "]";
-
-    vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << "): RequestData is opening the FITS with the following string: " << fns);
-
     fitsfile *fptr;
     int ReadStatus = 0;
-    if (fits_open_data(&fptr, fns.c_str(), READONLY, &ReadStatus))
+    if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
     {
         vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_open_data");
-        fits_report_error(stderr, ReadStatus);
-        return 0;
-    }
-
-    // Get axis information
-    int maxaxis = 3;
-    int imgtype = 0;
-    int naxis = 0;
-    long naxes[maxaxis];
-    if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
-    {
-        vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_get_img_param");
         fits_report_error(stderr, ReadStatus);
         return 0;
     }
@@ -235,41 +215,81 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     float *ptr = static_cast<float *>(data->GetPointData()->GetScalars()->GetVoidPointer(0));
     this->ComputeDataIncrements();
 
-    long fpixel = 1;
-    long long nels = naxes[0] * naxes[1] * naxes[2];
-    char *nullarray = new char[nels];
+    // Read the extent from the FITS file
+    long fP[] = {dataExtent[0] + 1, dataExtent[2] + 1, dataExtent[4] + 1, 1};
+    long lP[] = {dataExtent[1] + 1, dataExtent[3] + 1, dataExtent[5] + 1, 1};
+    long inc[] = {1, 1, 1, 1};
+    float nulval = 1e-30;
     int anynul = 0;
-    if (fits_read_imgnull(fptr, TFLOAT, fpixel, nels, ptr, nullarray, &anynul, &ReadStatus))
+    if (fits_read_subset(fptr, TFLOAT, fP, lP, inc, &nulval, ptr, &anynul, &ReadStatus))
     {
-        vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_read_imgnull");
+        vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_read_subset");
         fits_report_error(stderr, ReadStatus);
         return 0;
     }
 
-    // Replace null values
-    if (anynul)
+    // Get FITS Statistics
+    long dimX = dataExtent[1] - dataExtent[0] + 1;
+    long dimY = dataExtent[3] - dataExtent[2] + 1;
+    long dimZ = dataExtent[5] - dataExtent[4] + 1;
+    double mean = 0;
+    double rms = 0;
+    long goodpix = 0;
+    if (fits_img_stats_float(ptr, dimX * dimY, dimZ, 1, nulval, &goodpix, 0, 0, 0, &rms, 0, 0, 0, 0, &ReadStatus))
     {
-        for (long long i = 0; i < nels; ++i)
-        {
-            if (nullarray[i] == 1)
-            {
-                ptr[i] = 0;
-            }
-        }
+        vtkErrorMacro(<< this->GetClassName() << "[CFITSIO] Error fits_img_stats_float");
+        fits_report_error(stderr, ReadStatus);
     }
-    delete[] nullarray;
+    vtkDebugMacro(<< this->GetClassName() << " (" << ProcId << ") FITS Stats"
+                  << "\n  anynul = " << anynul
+                  << "\n  RMS: " << rms << "\n  THRESHOLD: " << (3.0 * rms)
+                  << "\n  GOOD PIXELS: " << goodpix);
 
     if (fits_close_file(fptr, &ReadStatus))
     {
         vtkErrorMacro(<< this->GetClassName() << " (" << ProcId << ") [CFITSIO] Error fits_close_file");
         fits_report_error(stderr, ReadStatus);
-        // We should have axes information, so we do not abort (i.e. no return failure here)
+        // We should have read the data, so we do not abort (i.e. no return failure here)
     }
 
-    if (ProcId == 0)
+    vtkTable *output = vtkTable::GetData(outVec, 1);
+
+    if (ProcInfo->GetNumberOfLocalPartitions() == 1)
     {
-        auto output = vtkTable::GetData(outVec, 1);
+        // We have the RMS value, so we put it in the output table.
         output->DeepCopy(table);
+
+        vtkNew<vtkVariantArray> rmsRow;
+        rmsRow->InsertNextValue(vtkVariant(std::string("RMS")));
+        rmsRow->InsertNextValue(vtkVariant(rms));
+        output->InsertNextRow(rmsRow);
+    }
+    else
+    {
+        // We have partial RMS values, so we put the MeanSquare values in the output tables
+
+        if (ProcId == 0)
+        {
+            // Proc #0 outputs the entire FITS Header
+            output->DeepCopy(table);
+        }
+        else
+        {
+            // Others provide just the partial MeanSquare, but we have to define the number of columns
+            vtkNew<vtkStringArray> hName;
+            hName->SetName("Name");
+            output->AddColumn(hName);
+
+            vtkNew<vtkStringArray> hValue;
+            hValue->SetName("Value");
+            output->AddColumn(hValue);
+        }
+
+        double meanSquare = rms * rms;
+        vtkNew<vtkVariantArray> msRow;
+        msRow->InsertNextValue(vtkVariant(std::string("MS" + std::to_string(ProcId))));
+        msRow->InsertNextValue(vtkVariant(meanSquare));
+        output->InsertNextRow(msRow);
     }
 
     return 1;
