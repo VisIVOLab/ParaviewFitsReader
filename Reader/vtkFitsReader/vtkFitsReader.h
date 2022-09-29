@@ -50,6 +50,9 @@ public:
     vtkSetMacro(NumberOfComponents, int);
     vtkGetMacro(NumberOfComponents, int);
 
+    vtkSetMacro(ReadSubExtent, bool);
+    vtkSetVector6Macro(SubExtent, int);
+
 protected:
     vtkFitsReader();
     ~vtkFitsReader() override;
@@ -79,5 +82,8 @@ private:
      * @return  0 on success, greater than 0 otherwise.
      */
     int ReadFITSHeader();
+
+    bool ReadSubExtent;
+    int SubExtent[6];
 };
 #endif
