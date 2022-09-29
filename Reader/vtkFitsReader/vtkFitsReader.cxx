@@ -54,6 +54,8 @@ int vtkFitsReader::CanReadFile(const char *fname)
 
 int vtkFitsReader::ReadFITSHeader()
 {
+    table->Initialize();
+    
     vtkNew<vtkStringArray> hName;
     hName->SetName("Name");
     table->AddColumn(hName);
