@@ -9,11 +9,6 @@
 
 #include <vtkMPIImageReader.h>
 #include <vtkNew.h>
-#include <vtkTable.h>
-
-#include <map>
-#include <string>
-#include <vector>
 
 class vtkTable;
 
@@ -83,7 +78,16 @@ private:
      */
     int ReadFITSHeader();
 
+    /**
+     * @brief This property specifies if the reader must read a subset of the data.
+     *
+     */
     bool ReadSubExtent;
+
+    /**
+     * @brief This property specifies the sub-extent to read. It is ignored if ReadSubExtent is disabled.
+     *
+     */
     int SubExtent[6];
 };
 #endif

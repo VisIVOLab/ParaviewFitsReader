@@ -1,14 +1,17 @@
 <ServerManagerConfiguration>
   <ProxyGroup name="sources">
-   <SourceProxy name="FitsReader"
-                class="vtkFitsReader"
-                label="FITS reader">
-     <Documentation
-       short_help="Read a FITS file."
-       long_help="Read a FITS file into an image data.">
-       The FITS reader reads FITS files. The default file extension is .fits.
-     </Documentation>
-     <StringVectorProperty
+    <SourceProxy
+      name="FitsReader"
+      class="vtkFitsReader"
+      label="FITS reader">
+
+      <Documentation
+        short_help="Read a FITS file."
+        long_help="Read a FITS file into an image data.">
+        The FITS reader reads FITS files. The default file extension is .fits.
+      </Documentation>
+
+      <StringVectorProperty
         name="FileName"
         animateable="0"
         command="SetFileName"
@@ -18,33 +21,33 @@
         <Documentation>
           This property specifies the file name for the FITS reader.
         </Documentation>
-     </StringVectorProperty>
+      </StringVectorProperty>
 
-    <IntVectorProperty
+      <IntVectorProperty
         name="ReadSubExtent"
         command="SetReadSubExtent"
         number_of_elements="1"
         default_values="0">
-        <BooleanDomain name="bool" />
+        <BooleanDomain name="bool"/>
         <Documentation>
-            This property specifies whether to read subset.
+          This property specifies if the reader must read a subset of the data.
         </Documentation>
-    </IntVectorProperty>
+      </IntVectorProperty>
 
-    <IntVectorProperty
+      <IntVectorProperty
         name="SubExtent"
         command="SetSubExtent"
         number_of_elements="6"
         default_values="0 0 0 0 0 0">
         <Documentation>
-            This property specifies the sub-extent to read.
+          This property specifies the sub-extent to read. It is ignored if ReadSubExtent is disabled.
         </Documentation>
-    </IntVectorProperty>
+      </IntVectorProperty>
 
-     <Hints>
-      <ReaderFactory extensions="fits" file_description="FITS Files" />
-     </Hints>
-   <!-- End FITSReader -->
-   </SourceProxy>
+      <Hints>
+        <ReaderFactory extensions="fits" file_description="FITS Files"/>
+      </Hints>
+    <!-- End FITSReader -->
+    </SourceProxy>
   </ProxyGroup>
 </ServerManagerConfiguration>
