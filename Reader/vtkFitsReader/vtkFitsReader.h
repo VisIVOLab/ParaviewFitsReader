@@ -48,6 +48,8 @@ public:
     vtkSetMacro(ReadSubExtent, bool);
     vtkSetVector6Macro(SubExtent, int);
 
+    vtkSetMacro(ReadStep, int);
+
 protected:
     vtkFitsReader();
     ~vtkFitsReader() override;
@@ -89,5 +91,11 @@ private:
      *
      */
     int SubExtent[6];
+
+    /**
+     * @brief This property can be used to read only every inc-th pixel along the z-dimension of the image.
+     *
+     */
+    int ReadStep;
 };
 #endif

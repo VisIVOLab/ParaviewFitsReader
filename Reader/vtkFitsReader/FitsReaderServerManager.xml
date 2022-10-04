@@ -44,6 +44,16 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty
+        name="ReadStep"
+        command="SetReadStep"
+        number_of_elements="1"
+        default_values="1">
+        <Documentation>
+          This property can be used to read only every inc-th pixel along the z-dimension of the image.
+        </Documentation>
+      </IntVectorProperty>
+
       <Hints>
         <ReaderFactory extensions="fits" file_description="FITS Files"/>
       </Hints>

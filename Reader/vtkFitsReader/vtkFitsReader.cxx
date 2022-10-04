@@ -174,6 +174,17 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
         }
     }
 
+    if (ReadStep > 1)
+    {
+        if (ProcId == 0)
+        {
+            vtkDebugMacro(<< "(#" << ProcId << ") ReadStep " << ReadStep);
+        }
+
+        dataExtent[4] = dataExtent[4] / ReadStep;
+        dataExtent[5] = dataExtent[5] / ReadStep;
+    }
+
     this->SetPointDataType(vtkDataSetAttributes::SCALARS);
     this->SetNumberOfComponents(1);
     this->SetDataType(VTK_FLOAT);
@@ -244,9 +255,9 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     this->ComputeDataIncrements();
 
     // Read the extent from the FITS file
-    long fP[] = {dataExtent[0] + 1, dataExtent[2] + 1, dataExtent[4] + 1, 1};
-    long lP[] = {dataExtent[1] + 1, dataExtent[3] + 1, dataExtent[5] + 1, 1};
-    long inc[] = {1, 1, 1, 1};
+    long fP[] = {dataExtent[0] + 1, dataExtent[2] + 1, ReadStep * dataExtent[4] + 1, 1};
+    long lP[] = {dataExtent[1] + 1, dataExtent[3] + 1, ReadStep * dataExtent[5] + 1, 1};
+    long inc[] = {1, 1, ReadStep, 1};
     float nulval = 1e-30;
     int anynul = 0;
     if (fits_read_subset(fptr, TFLOAT, fP, lP, inc, &nulval, ptr, &anynul, &ReadStatus))
@@ -257,6 +268,7 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     }
 
     // Get FITS Statistics
+    /*
     long dimX = dataExtent[1] - dataExtent[0] + 1;
     long dimY = dataExtent[3] - dataExtent[2] + 1;
     long dimZ = dataExtent[5] - dataExtent[4] + 1;
@@ -272,6 +284,8 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
                   << "\n  anynul = " << anynul
                   << "\n  RMS: " << rms << "\n  THRESHOLD: " << (3.0 * rms)
                   << "\n  GOOD PIXELS: " << goodpix);
+    */
+    double rms = 0;
 
     if (fits_close_file(fptr, &ReadStatus))
     {
