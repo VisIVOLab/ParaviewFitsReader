@@ -47,10 +47,10 @@
       <IntVectorProperty
         name="ReadStep"
         command="SetReadStep"
-        number_of_elements="1"
-        default_values="1">
+        number_of_elements="3"
+        default_values="1 1 1">
         <Documentation>
-          This property can be used to read only every inc-th pixel along the z-dimension of the image.
+          This property can be used to read only every inc-th pixel along the dimensions of the image.
         </Documentation>
       </IntVectorProperty>
 
