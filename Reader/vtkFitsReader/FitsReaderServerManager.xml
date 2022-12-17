@@ -38,17 +38,17 @@
         name="SubExtent"
         command="SetSubExtent"
         number_of_elements="6"
-        default_values="0 0 0 0 0 0">
+        default_values="-1 -1 -1 -1 -1 -1">
         <Documentation>
           This property specifies the sub-extent to read. It is ignored if ReadSubExtent is disabled.
         </Documentation>
       </IntVectorProperty>
 
       <IntVectorProperty
-        name="ReadStep"
-        command="SetReadStep"
-        number_of_elements="3"
-        default_values="1 1 1">
+        name="ScaleFactor"
+        command="SetScaleFactor"
+        number_of_elements="1"
+        default_values="1">
         <Documentation>
           This property can be used to read only every inc-th pixel along the dimensions of the image.
         </Documentation>

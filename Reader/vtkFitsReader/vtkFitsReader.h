@@ -14,7 +14,7 @@ class vtkTable;
 
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
-public:
+  public:
     static vtkFitsReader *New();
     vtkTypeMacro(vtkFitsReader, vtkMPIImageReader);
     void PrintSelf(ostream &os, vtkIndent indent) override;
@@ -26,43 +26,38 @@ public:
      * Returns a string with a space separated list of extensions in
      * the format .extension
      */
-    const char *GetFileExtensions() override { return ".fits"; }
+    const char *GetFileExtensions() override
+    {
+        return ".fits";
+    }
 
     /**
-     * Return a descriptive name for the file format that might be useful in a GUI.
+     * Return a descriptive name for the file format that might be useful in a
+     * GUI.
      */
-    const char *GetDescriptiveName() override { return "FITS"; }
+    const char *GetDescriptiveName() override
+    {
+        return "FITS";
+    }
 
-    /// Point data field type
-    vtkSetMacro(PointDataType, int);
-    vtkGetMacro(PointDataType, int);
-
-    /// Set the data type: int, float....
-    vtkSetMacro(DataType, int);
-    vtkGetMacro(DataType, int);
-
-    /// Number of components
-    vtkSetMacro(NumberOfComponents, int);
-    vtkGetMacro(NumberOfComponents, int);
-
+    vtkGetMacro(ReadSubExtent, bool);
     vtkSetMacro(ReadSubExtent, bool);
+
+    vtkGetVector6Macro(SubExtent, int);
     vtkSetVector6Macro(SubExtent, int);
 
-    vtkSetVector3Macro(ReadStep, int);
+    vtkGetMacro(ScaleFactor, int);
+    vtkSetMacro(ScaleFactor, int);
 
-protected:
+  protected:
     vtkFitsReader();
     ~vtkFitsReader() override;
-
-    int PointDataType;
-    int DataType;
-    int NumberOfComponents;
 
     int RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
     int RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
     int FillOutputPortInformation(int port, vtkInformation *info) override;
 
-private:
+  private:
     vtkFitsReader(const vtkFitsReader &) = delete;
     vtkFitsReader &operator=(const vtkFitsReader &) = delete;
 
@@ -81,21 +76,24 @@ private:
     int ReadFITSHeader();
 
     /**
-     * @brief This property specifies if the reader must read a subset of the data.
+     * @brief This property specifies if the reader must read a subset of the
+     * data.
      *
      */
     bool ReadSubExtent;
 
     /**
-     * @brief This property specifies the sub-extent to read. It is ignored if ReadSubExtent is disabled.
+     * @brief This property specifies the sub-extent to read. It is ignored if
+     * ReadSubExtent is disabled.
      *
      */
     int SubExtent[6];
 
     /**
-     * @brief This property can be used to read only every inc-th pixel along the dimensions of the image.
+     * @brief This property can be used to read only every inc-th pixel along the
+     * dimensions of the image.
      *
      */
-    int ReadStep[3];
+    int ScaleFactor;
 };
 #endif

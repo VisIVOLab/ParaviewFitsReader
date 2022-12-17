@@ -2,9 +2,6 @@
 
 #include <fitsio.h>
 
-// #include <boost/algorithm/string.hpp>
-// #include <boost/lexical_cast.hpp>
-
 #include <vtkCommand.h>
 #include <vtkErrorCode.h>
 #include <vtkFloatArray.h>
@@ -47,6 +44,10 @@ vtkFitsReader::~vtkFitsReader()
 void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
 {
     this->Superclass::PrintSelf(os, indent);
+    os << indent << "ScaleFactor: " << ScaleFactor;
+    os << indent << "ReadSubExtent: " << std::boolalpha << ReadSubExtent;
+    os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " "
+       << SubExtent[3] << " " << SubExtent[4] << " " << SubExtent[5];
 }
 
 int vtkFitsReader::CanReadFile(const char *fname)
@@ -140,55 +141,37 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
         // We should have axes information, so we do not abort (i.e. no return here)
     }
 
-    // Calculate the DataExtent and set the Spacing and Origin
-    double spacings[3] = {1.0};
-    double origin[3] = {0.0};
-    int dataExtent[6];
-
+    // Calculate and adjust DataExtent
+    int dataExtent[6] = {0, static_cast<int>(naxes[0] - 1), 0, static_cast<int>(naxes[1] - 1),
+                         0, static_cast<int>(naxes[2] - 1)};
     if (ReadSubExtent)
     {
-        dataExtent[0] = std::max(0, SubExtent[0]);
-        dataExtent[1] = std::min(static_cast<int>(naxes[0] - 1), SubExtent[1]);
-        dataExtent[2] = std::max(0, SubExtent[2]);
-        dataExtent[3] = std::min(static_cast<int>(naxes[1] - 1), SubExtent[3]);
-        dataExtent[4] = std::max(0, SubExtent[4]);
-        dataExtent[5] = std::min(static_cast<int>(naxes[2] - 1), SubExtent[5]);
+        for (int i = 0; i < 6; ++i)
+        {
+            if (SubExtent[i] != -1)
+            {
+                dataExtent[i] = SubExtent[i];
+            }
+        }
 
         if (ProcId == 0)
         {
-            vtkDebugMacro(<< "(#" << ProcId << ")\nReadSubExtent enabled [" << SubExtent[0] << ", " << SubExtent[1] << ", "
-                          << SubExtent[2] << ", " << SubExtent[3] << ", "
-                          << SubExtent[4] << ", " << SubExtent[5] << "]"
-                          << "\nActual SubExtent [" << dataExtent[0] << ", " << dataExtent[1] << ", "
-                          << dataExtent[2] << ", " << dataExtent[3] << ", "
-                          << dataExtent[4] << ", " << dataExtent[5] << "]");
-        }
-    }
-    else
-    {
-        for (int axii = 0; axii < naxis; ++axii)
-        {
-            dataExtent[2 * axii] = 0;
-            dataExtent[2 * axii + 1] = naxes[axii] - 1;
+            vtkDebugMacro(<< "(#" << ProcId << ")\nReadSubExtent enabled [" << SubExtent[0] << ", " << SubExtent[1]
+                          << ", " << SubExtent[2] << ", " << SubExtent[3] << ", " << SubExtent[4] << ", "
+                          << SubExtent[5] << "]"
+                          << "\nActual SubExtent [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
+                          << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
         }
     }
 
-    for (int i = 0; i < 3; ++i)
+    if (ScaleFactor > 1)
     {
-        if (ReadStep[i] > 1)
+        for (int i = 0; i < 3; ++i)
         {
-            dataExtent[2 * i] = dataExtent[2 * i] / ReadStep[i];
-            dataExtent[2 * i + 1] = dataExtent[2 * i + 1] / ReadStep[i];
+            dataExtent[2 * i] /= ScaleFactor;
+            dataExtent[2 * i + 1] /= ScaleFactor;
         }
     }
-
-    this->SetPointDataType(vtkDataSetAttributes::SCALARS);
-    this->SetNumberOfComponents(1);
-    this->SetDataType(VTK_FLOAT);
-    this->SetDataScalarType(VTK_FLOAT);
-    this->SetDataExtent(dataExtent);
-    this->SetDataSpacing(spacings);
-    this->SetDataOrigin(origin);
 
     vtkInformation *outInfo = outVec->GetInformationObject(0);
     outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 1);
@@ -199,13 +182,11 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
         ReadFITSHeader();
         vtkDebugMacro(<< "(#" << ProcId << ") FITS Info"
                       << "\n  # of processors: " << ProcInfo->GetNumberOfLocalPartitions()
-                      << "\n  FileName: " << FileName
-                      << "\n  ImgType: " << imgtype
-                      << "\n  NAXIS: " << naxis
+                      << "\n  FileName: " << FileName << "\n  ImgType: " << imgtype << "\n  NAXIS: " << naxis
                       << "\n  NAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
-                      << "\n  ReadSteps = [" << ReadStep[0] << ", " << ReadStep[1] << ", " << ReadStep[2] << "]"
-                      << "\n  DataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
-                      << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
+                      << "\n  ScaleFactor: " << ScaleFactor << "\n  DataExtent = [" << dataExtent[0] << ", "
+                      << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3] << ", " << dataExtent[4]
+                      << ", " << dataExtent[5] << "]");
     }
 
     return 1;
@@ -223,15 +204,25 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     }
 
     // Get Data Extent assigned to this process
-    int dataExtent[6] = {0, -1, 0, -1, 0, -1};
+    int dataExtent[6];
     vtkInformation *outInfo = outVec->GetInformationObject(0);
     outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), dataExtent);
-    vtkDebugMacro(<< "(#" << ProcId << ") RequestData " << FileName
-                  << " - DataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
-                  << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
 
-    vtkImageData *data = this->AllocateOutputData(outInfo->Get(vtkDataObject::DATA_OBJECT()), outInfo);
-    if (data == nullptr)
+    long dimX = dataExtent[1] - dataExtent[0] + 1;
+    long dimY = dataExtent[3] - dataExtent[2] + 1;
+    long dimZ = dataExtent[5] - dataExtent[4] + 1;
+    long nels = dimX * dimY * dimZ;
+
+    vtkDebugMacro(<< "(#" << ProcId << ") RequestData " << FileName << " - DataExtent = [" << dataExtent[0] << ", "
+                  << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3] << ", " << dataExtent[4] << ", "
+                  << dataExtent[5] << "]");
+
+    float *ptr;
+    try
+    {
+        ptr = new float[nels];
+    }
+    catch (const std::bad_alloc &e)
     {
         vtkErrorMacro(<< "(#" << ProcId << ") Data not allocated.");
         return 0;
@@ -246,16 +237,10 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
         return 0;
     }
 
-    // Set Data Extend and get Data Pointer
-    data->SetExtent(dataExtent);
-    data->GetPointData()->GetScalars()->SetName("FITSImage");
-    float *ptr = static_cast<float *>(data->GetPointData()->GetScalars()->GetVoidPointer(0));
-    this->ComputeDataIncrements();
-
     // Read the extent from the FITS file
-    long fP[] = {ReadStep[0] * dataExtent[0] + 1, ReadStep[1] * dataExtent[2] + 1, ReadStep[2] * dataExtent[4] + 1, 1};
-    long lP[] = {ReadStep[0] * dataExtent[1] + 1, ReadStep[1] * dataExtent[3] + 1, ReadStep[2] * dataExtent[5] + 1, 1};
-    long inc[] = {ReadStep[0], ReadStep[1], ReadStep[2], 1};
+    long fP[] = {ScaleFactor * dataExtent[0] + 1, ScaleFactor * dataExtent[2] + 1, ScaleFactor * dataExtent[4] + 1, 1};
+    long lP[] = {ScaleFactor * dataExtent[1] + 1, ScaleFactor * dataExtent[3] + 1, ScaleFactor * dataExtent[5] + 1, 1};
+    long inc[] = {ScaleFactor, ScaleFactor, ScaleFactor, 1};
     float nulval = 1e-30;
     int anynul = 0;
     if (fits_read_subset(fptr, TFLOAT, fP, lP, inc, &nulval, ptr, &anynul, &ReadStatus))
@@ -266,9 +251,6 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     }
 
     // Get FITS Statistics
-    long dimX = dataExtent[1] - dataExtent[0] + 1;
-    long dimY = dataExtent[3] - dataExtent[2] + 1;
-    long dimZ = dataExtent[5] - dataExtent[4] + 1;
     double mean = 0;
     double rms = 0;
     long goodpix = 0;
@@ -277,9 +259,9 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
         vtkErrorMacro(<< "[CFITSIO] Error fits_img_stats_float");
         fits_report_error(stderr, ReadStatus);
     }
+
     vtkDebugMacro(<< "(#" << ProcId << ") FITS Stats"
-                  << "\n  anynul = " << anynul
-                  << "\n  RMS: " << rms << "\n  THRESHOLD: " << (3.0 * rms)
+                  << "\n  anynul = " << anynul << "\n  RMS: " << rms << "\n  THRESHOLD: " << (3.0 * rms)
                   << "\n  GOOD PIXELS: " << goodpix);
 
     if (fits_close_file(fptr, &ReadStatus))
@@ -288,6 +270,17 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
         fits_report_error(stderr, ReadStatus);
         // We should have read the data, so we do not abort (i.e. no return failure here)
     }
+
+    vtkNew<vtkFloatArray> scalars;
+    scalars->SetName("FITSImage");
+    scalars->SetNumberOfComponents(1);
+    scalars->SetVoidArray(ptr, nels, 0, vtkAbstractArray::VTK_DATA_ARRAY_DELETE);
+
+    vtkImageData *data = vtkImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+    data->SetExtent(dataExtent);
+    data->SetOrigin(0.0, 0.0, 0.0);
+    data->SetSpacing(ScaleFactor, ScaleFactor, ScaleFactor);
+    data->GetPointData()->SetScalars(scalars);
 
     vtkTable *output = vtkTable::GetData(outVec, 1);
 
