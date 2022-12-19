@@ -45,6 +45,17 @@
       </IntVectorProperty>
 
       <IntVectorProperty
+        name="AutoScale"
+        command="SetAutoScale"
+        number_of_elements="1"
+        default_values="0">
+        <BooleanDomain name="bool"/>
+        <Documentation>
+          This property specifies whether to use a ScaleFactor by default.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
         name="ScaleFactor"
         command="SetScaleFactor"
         number_of_elements="1"

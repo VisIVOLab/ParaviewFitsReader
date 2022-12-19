@@ -44,10 +44,11 @@ vtkFitsReader::~vtkFitsReader()
 void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
 {
     this->Superclass::PrintSelf(os, indent);
-    os << indent << "ScaleFactor: " << ScaleFactor;
     os << indent << "ReadSubExtent: " << std::boolalpha << ReadSubExtent;
     os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " "
        << SubExtent[3] << " " << SubExtent[4] << " " << SubExtent[5];
+    os << indent << "AutoScale: " << std::boolalpha << AutoScale;
+    os << indent << "ScaleFactor: " << ScaleFactor;
 }
 
 int vtkFitsReader::CanReadFile(const char *fname)
@@ -164,6 +165,22 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
         }
     }
 
+    // If AutoScale is enabled, calculate ScaleFactor
+    if (AutoScale)
+    {
+        long dimX = dataExtent[1] - dataExtent[0] + 1;
+        long dimY = dataExtent[3] - dataExtent[2] + 1;
+        long dimZ = dataExtent[5] - dataExtent[4] + 1;
+        long nels = dimX * dimY * dimZ;
+        size_t size = sizeof(float) * nels;
+
+        if (size > AUTOSCALE_MAX_SIZE)
+        {
+            int factor = ceil(cbrt(1.0 * size / AUTOSCALE_MAX_SIZE));
+            SetScaleFactor(factor);
+        }
+    }
+
     if (ScaleFactor > 1)
     {
         for (int i = 0; i < 3; ++i)
@@ -184,9 +201,9 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
                       << "\n  # of processors: " << ProcInfo->GetNumberOfLocalPartitions()
                       << "\n  FileName: " << FileName << "\n  ImgType: " << imgtype << "\n  NAXIS: " << naxis
                       << "\n  NAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
-                      << "\n  ScaleFactor: " << ScaleFactor << "\n  DataExtent = [" << dataExtent[0] << ", "
-                      << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3] << ", " << dataExtent[4]
-                      << ", " << dataExtent[5] << "]");
+                      << "\n  AutoScale: " << AutoScale << "\n  ScaleFactor: " << ScaleFactor << "\n  DataExtent = ["
+                      << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3]
+                      << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
     }
 
     return 1;

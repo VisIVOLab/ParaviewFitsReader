@@ -10,6 +10,8 @@
 #include <vtkMPIImageReader.h>
 #include <vtkNew.h>
 
+#define AUTOSCALE_MAX_SIZE (1 * 1024 * 1024 * 1024)
+
 class vtkTable;
 
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
@@ -45,6 +47,9 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 
     vtkGetVector6Macro(SubExtent, int);
     vtkSetVector6Macro(SubExtent, int);
+
+    vtkGetMacro(AutoScale, bool);
+    vtkSetMacro(AutoScale, bool);
 
     vtkGetMacro(ScaleFactor, int);
     vtkSetMacro(ScaleFactor, int);
@@ -88,6 +93,12 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
      *
      */
     int SubExtent[6];
+
+    /**
+     * @brief This property specifies whether to use a ScaleFactor by default.
+     *
+     */
+    bool AutoScale;
 
     /**
      * @brief This property can be used to read only every inc-th pixel along the
