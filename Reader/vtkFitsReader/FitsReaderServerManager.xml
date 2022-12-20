@@ -56,6 +56,16 @@
       </IntVectorProperty>
 
       <IntVectorProperty
+        name="CubeMaxSize"
+        command="SetCubeMaxSize"
+        number_of_elements="1"
+        default_values="1024">
+        <Documentation>
+          This property can be used along with AutoScale to use at most MaxCubeSize (MB) for reading the cube.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
         name="ScaleFactor"
         command="SetScaleFactor"
         number_of_elements="1"

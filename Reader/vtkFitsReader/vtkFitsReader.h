@@ -10,8 +10,6 @@
 #include <vtkMPIImageReader.h>
 #include <vtkNew.h>
 
-#define AUTOSCALE_MAX_SIZE (1 * 1024 * 1024 * 1024)
-
 class vtkTable;
 
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
@@ -50,6 +48,9 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 
     vtkGetMacro(AutoScale, bool);
     vtkSetMacro(AutoScale, bool);
+
+    vtkGetMacro(CubeMaxSize, int);
+    vtkSetMacro(CubeMaxSize, int);
 
     vtkGetMacro(ScaleFactor, int);
     vtkSetMacro(ScaleFactor, int);
@@ -99,6 +100,13 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
      *
      */
     bool AutoScale;
+
+    /**
+     * @brief This property can be used along with AutoScale to use at most MaxCubeSize (MB)
+     *  for reading the cube.
+     *
+     */
+    int CubeMaxSize;
 
     /**
      * @brief This property can be used to read only every inc-th pixel along the

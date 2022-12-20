@@ -173,10 +173,11 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
         long dimZ = dataExtent[5] - dataExtent[4] + 1;
         long nels = dimX * dimY * dimZ;
         size_t size = sizeof(float) * nels;
+        size_t maxSize = CubeMaxSize * 1024 * 1024;
 
-        if (size > AUTOSCALE_MAX_SIZE)
+        if (size > maxSize)
         {
-            int factor = ceil(cbrt(1.0 * size / AUTOSCALE_MAX_SIZE));
+            int factor = ceil(cbrt(1.0 * size / maxSize));
             SetScaleFactor(factor);
         }
     }
