@@ -7,11 +7,14 @@
 #ifndef __vtkFitsReader_h
 #define __vtkFitsReader_h
 
-#include "vtkMPIImageReader.h"
+#include <vtkMPIImageReader.h>
+#include <vtkNew.h>
+
+class vtkTable;
 
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
-public:
+  public:
     static vtkFitsReader *New();
     vtkTypeMacro(vtkFitsReader, vtkMPIImageReader);
     void PrintSelf(ostream &os, vtkIndent indent) override;
@@ -23,38 +26,44 @@ public:
      * Returns a string with a space separated list of extensions in
      * the format .extension
      */
-    const char *GetFileExtensions() override { return ".fits"; }
+    const char *GetFileExtensions() override
+    {
+        return ".fits";
+    }
 
     /**
-     * Return a descriptive name for the file format that might be useful in a GUI.
+     * Return a descriptive name for the file format that might be useful in a
+     * GUI.
      */
-    const char *GetDescriptiveName() override { return "FITS"; }
+    const char *GetDescriptiveName() override
+    {
+        return "FITS";
+    }
 
-    /// Point data field type
-    vtkSetMacro(PointDataType, int);
-    vtkGetMacro(PointDataType, int);
-
-    /// Set the data type: int, float....
-    vtkSetMacro(DataType, int);
-    vtkGetMacro(DataType, int);
-
-    /// Number of components
-    vtkSetMacro(NumberOfComponents, int);
-    vtkGetMacro(NumberOfComponents, int);
-
-protected:
+  protected:
     vtkFitsReader();
     ~vtkFitsReader() override;
 
-    int PointDataType;
-    int DataType;
-    int NumberOfComponents;
-
     int RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
     int RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
+    int FillOutputPortInformation(int port, vtkInformation *info) override;
 
-private:
+  private:
     vtkFitsReader(const vtkFitsReader &) = delete;
-    void operator=(const vtkFitsReader &) = delete;
+    vtkFitsReader &operator=(const vtkFitsReader &) = delete;
+
+    /**
+     * @brief FITS Header
+     *
+     */
+    vtkNew<vtkTable> table;
+
+    /**
+     * @brief   Read the header and store the key-value pairs in g.
+     *          This function ignores HISTORY, COMMENT and empty keywords.
+     *
+     * @return  0 on success, greater than 0 otherwise.
+     */
+    int ReadFITSHeader();
 };
 #endif
