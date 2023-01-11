@@ -40,6 +40,21 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
         return "FITS";
     }
 
+    vtkGetMacro(ReadSubExtent, bool);
+    vtkSetMacro(ReadSubExtent, bool);
+
+    vtkGetVector6Macro(SubExtent, int);
+    vtkSetVector6Macro(SubExtent, int);
+
+    vtkGetMacro(AutoScale, bool);
+    vtkSetMacro(AutoScale, bool);
+
+    vtkGetMacro(CubeMaxSize, int);
+    vtkSetMacro(CubeMaxSize, int);
+
+    vtkGetMacro(ScaleFactor, int);
+    vtkSetMacro(ScaleFactor, int);
+
   protected:
     vtkFitsReader();
     ~vtkFitsReader() override;
@@ -65,5 +80,39 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
      * @return  0 on success, greater than 0 otherwise.
      */
     int ReadFITSHeader();
+
+    /**
+     * @brief This property specifies if the reader must read a subset of the
+     * data.
+     *
+     */
+    bool ReadSubExtent;
+
+    /**
+     * @brief This property specifies the sub-extent to read. It is ignored if
+     * ReadSubExtent is disabled.
+     *
+     */
+    int SubExtent[6];
+
+    /**
+     * @brief This property specifies whether to use a ScaleFactor by default.
+     *
+     */
+    bool AutoScale;
+
+    /**
+     * @brief This property can be used along with AutoScale to use at most MaxCubeSize (MB)
+     *  for reading the cube.
+     *
+     */
+    int CubeMaxSize;
+
+    /**
+     * @brief This property can be used to read only every inc-th pixel along the
+     * dimensions of the image.
+     *
+     */
+    int ScaleFactor;
 };
 #endif

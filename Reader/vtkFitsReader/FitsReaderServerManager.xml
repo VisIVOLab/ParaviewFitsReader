@@ -1,14 +1,17 @@
 <ServerManagerConfiguration>
   <ProxyGroup name="sources">
-   <SourceProxy name="FitsReader"
-                class="vtkFitsReader"
-                label="FITS reader">
-     <Documentation
-       short_help="Read a FITS file."
-       long_help="Read a FITS file into an image data.">
-       The FITS reader reads FITS files. The default file extension is .fits.
-     </Documentation>
-     <StringVectorProperty
+    <SourceProxy
+      name="FitsReader"
+      class="vtkFitsReader"
+      label="FITS reader">
+
+      <Documentation
+        short_help="Read a FITS file."
+        long_help="Read a FITS file into an image data.">
+        The FITS reader reads FITS files. The default file extension is .fits.
+      </Documentation>
+
+      <StringVectorProperty
         name="FileName"
         animateable="0"
         command="SetFileName"
@@ -18,12 +21,64 @@
         <Documentation>
           This property specifies the file name for the FITS reader.
         </Documentation>
-     </StringVectorProperty>
+      </StringVectorProperty>
 
-     <Hints>
-      <ReaderFactory extensions="fits" file_description="FITS Files" />
-     </Hints>
-   <!-- End FITSReader -->
-   </SourceProxy>
+      <IntVectorProperty
+        name="ReadSubExtent"
+        command="SetReadSubExtent"
+        number_of_elements="1"
+        default_values="0">
+        <BooleanDomain name="bool"/>
+        <Documentation>
+          This property specifies if the reader must read a subset of the data.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        name="SubExtent"
+        command="SetSubExtent"
+        number_of_elements="6"
+        default_values="-1 -1 -1 -1 -1 -1">
+        <Documentation>
+          This property specifies the sub-extent to read. It is ignored if ReadSubExtent is disabled.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        name="AutoScale"
+        command="SetAutoScale"
+        number_of_elements="1"
+        default_values="0">
+        <BooleanDomain name="bool"/>
+        <Documentation>
+          This property specifies whether to use a ScaleFactor by default.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        name="CubeMaxSize"
+        command="SetCubeMaxSize"
+        number_of_elements="1"
+        default_values="1024">
+        <Documentation>
+          This property can be used along with AutoScale to use at most MaxCubeSize (MB) for reading the cube.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        name="ScaleFactor"
+        command="SetScaleFactor"
+        number_of_elements="1"
+        default_values="1">
+        <Documentation>
+          This property can be used to read only every inc-th pixel along the dimensions of the image.
+        </Documentation>
+      </IntVectorProperty>
+
+      <Hints>
+        <ReaderFactory extensions="fits" file_description="FITS Files"/>
+      </Hints>
+    <!-- End FITSReader -->
+    </SourceProxy>
   </ProxyGroup>
 </ServerManagerConfiguration>

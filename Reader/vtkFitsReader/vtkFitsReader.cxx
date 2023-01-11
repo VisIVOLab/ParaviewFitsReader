@@ -48,6 +48,11 @@ void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
     this->Superclass::PrintSelf(os, indent);
     os << indent << "SMP Backend: " << vtkSMPTools::GetBackend();
     os << indent << "Estimated # of threads: " << vtkSMPTools::GetEstimatedNumberOfThreads();
+    os << indent << "ReadSubExtent: " << std::boolalpha << ReadSubExtent;
+    os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " "
+       << SubExtent[3] << " " << SubExtent[4] << " " << SubExtent[5];
+    os << indent << "AutoScale: " << std::boolalpha << AutoScale;
+    os << indent << "ScaleFactor: " << ScaleFactor;
 }
 
 int vtkFitsReader::CanReadFile(const char *fname)
@@ -144,6 +149,51 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     // Calculate and adjust DataExtent
     int dataExtent[6] = {0, static_cast<int>(naxes[0] - 1), 0, static_cast<int>(naxes[1] - 1),
                          0, static_cast<int>(naxes[2] - 1)};
+    if (ReadSubExtent)
+    {
+        for (int i = 0; i < 6; ++i)
+        {
+            if (SubExtent[i] != -1)
+            {
+                dataExtent[i] = SubExtent[i];
+            }
+        }
+
+        if (ProcId == 0)
+        {
+            vtkDebugMacro(<< "(#" << ProcId << ")\nReadSubExtent enabled [" << SubExtent[0] << ", " << SubExtent[1]
+                          << ", " << SubExtent[2] << ", " << SubExtent[3] << ", " << SubExtent[4] << ", "
+                          << SubExtent[5] << "]"
+                          << "\nActual SubExtent [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2]
+                          << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
+        }
+    }
+
+    // If AutoScale is enabled, calculate ScaleFactor
+    if (AutoScale)
+    {
+        long dimX = dataExtent[1] - dataExtent[0] + 1;
+        long dimY = dataExtent[3] - dataExtent[2] + 1;
+        long dimZ = dataExtent[5] - dataExtent[4] + 1;
+        long nels = dimX * dimY * dimZ;
+        size_t size = sizeof(float) * nels;
+        size_t maxSize = CubeMaxSize * 1024 * 1024;
+
+        if (size > maxSize)
+        {
+            int factor = ceil(cbrt(1.0 * size / maxSize));
+            SetScaleFactor(factor);
+        }
+    }
+
+    if (ScaleFactor > 1)
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            dataExtent[2 * i] /= ScaleFactor;
+            dataExtent[2 * i + 1] /= ScaleFactor;
+        }
+    }
 
     vtkInformation *outInfo = outVec->GetInformationObject(0);
     outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 1);
@@ -156,8 +206,9 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
                       << "\n  # of processors: " << ProcInfo->GetNumberOfLocalPartitions()
                       << "\n  FileName: " << FileName << "\n  ImgType: " << imgtype << "\n  NAXIS: " << naxis
                       << "\n  NAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
-                      << "\n  DataExtent = [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", "
-                      << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
+                      << "\n  AutoScale: " << AutoScale << "\n  ScaleFactor: " << ScaleFactor << "\n  DataExtent = ["
+                      << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3]
+                      << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
     }
 
     return 1;
@@ -201,8 +252,10 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
 
     int size = strlen(FileName) + 100;
     char fn[size];
-    snprintf(fn, size, "%s[%d:%d, %d:%d, %d:%d]", FileName, dataExtent[0] + 1, dataExtent[1] + 1, dataExtent[2] + 1,
-             dataExtent[3] + 1, dataExtent[4] + 1, dataExtent[5] + 1);
+    snprintf(fn, size, "%s[%d:%d:%d, %d:%d:%d, %d:%d:%d]", FileName, ScaleFactor * dataExtent[0] + 1,
+             ScaleFactor * dataExtent[1] + 1, ScaleFactor, ScaleFactor * dataExtent[2] + 1,
+             ScaleFactor * dataExtent[3] + 1, ScaleFactor, ScaleFactor * dataExtent[4] + 1,
+             ScaleFactor * dataExtent[5] + 1, ScaleFactor);
 
     fitsfile *fptr;
     int ReadStatus = 0;
@@ -266,7 +319,7 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     vtkImageData *data = vtkImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
     data->SetExtent(dataExtent);
     data->SetOrigin(0.0, 0.0, 0.0);
-    data->SetSpacing(1.0, 1.0, 1.0);
+    data->SetSpacing(ScaleFactor, ScaleFactor, ScaleFactor);
     data->GetPointData()->SetScalars(scalars);
 
     vtkTable *output = vtkTable::GetData(outVec, 1);
