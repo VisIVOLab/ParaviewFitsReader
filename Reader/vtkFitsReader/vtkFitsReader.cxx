@@ -177,7 +177,7 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
         long dimZ = dataExtent[5] - dataExtent[4] + 1;
         long nels = dimX * dimY * dimZ;
         size_t size = sizeof(float) * nels;
-        size_t maxSize = CubeMaxSize * 1024 * 1024;
+        size_t maxSize = static_cast<unsigned long>(CubeMaxSize) * 1024UL * 1024UL;
 
         if (size > maxSize)
         {
