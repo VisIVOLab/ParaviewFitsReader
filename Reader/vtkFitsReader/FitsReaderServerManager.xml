@@ -68,11 +68,18 @@
       <IntVectorProperty
         name="ScaleFactor"
         command="SetScaleFactor"
+        information_property="ScaleFactorInfo"
         number_of_elements="1"
         default_values="1">
         <Documentation>
           This property can be used to read only every inc-th pixel along the dimensions of the image.
         </Documentation>
+      </IntVectorProperty>
+      
+      <IntVectorProperty
+        command="GetScaleFactor"
+        information_only="1"
+        name="ScaleFactorInfo">
       </IntVectorProperty>
 
       <Hints>
