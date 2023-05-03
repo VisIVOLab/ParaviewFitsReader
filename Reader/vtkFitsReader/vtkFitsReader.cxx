@@ -30,6 +30,7 @@ vtkFitsReader::vtkFitsReader()
 {
     this->FileName = NULL;
     this->SetNumberOfOutputPorts(2);
+    this->ImgType = imageType::EMPTY;
 
 #ifndef NDEBUG
     this->DebugOn();
@@ -44,9 +45,13 @@ vtkFitsReader::~vtkFitsReader()
 void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
 {
     this->Superclass::PrintSelf(os, indent);
+    os << indent << "ImageType: " << (imageType) ImgType;
     os << indent << "ReadSubExtent: " << std::boolalpha << ReadSubExtent;
-    os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " "
-       << SubExtent[3] << " " << SubExtent[4] << " " << SubExtent[5];
+    if ((imageType) ImgType == imageType::FITS2DIMAGE)
+        os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " " << SubExtent[3];
+    else if ((imageType) ImgType == imageType::FITS3DIMAGE)
+        os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " " << SubExtent[3]
+           << " " << SubExtent[4] << " " << SubExtent[5];
     os << indent << "AutoScale: " << std::boolalpha << AutoScale;
     os << indent << "ScaleFactor: " << ScaleFactor;
 }
@@ -142,9 +147,37 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
         // We should have axes information, so we do not abort (i.e. no return here)
     }
 
+    // Check if the image is 2D or 3D
+    if (naxis == 2)
+    {
+        ImgType = imageType::FITS2DIMAGE;
+    }
+    else if (naxis >= 3)
+    {
+        ImgType = imageType::FITS3DIMAGE;
+    }
+    else
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [FITS Header] Error: header proclaims erroneous number of axes.");
+        return 1;
+    }
+
+    int dataExtent[6];
     // Calculate and adjust DataExtent
-    int dataExtent[6] = {0, static_cast<int>(naxes[0] - 1), 0, static_cast<int>(naxes[1] - 1),
-                         0, static_cast<int>(naxes[2] - 1)};
+    if (ImgType == imageType::FITS2DIMAGE)
+    {
+        dataExtent[0] = dataExtent[2] = dataExtent[4] = dataExtent[5] = 0;
+        dataExtent[1] = static_cast<int>(naxes[0] - 1);
+        dataExtent[3] = static_cast<int>(naxes[1] - 1);
+    }
+    else // if (ImgType == imageType::FITS3DIMAGE) always true
+    {
+        dataExtent[0] = dataExtent[2] = dataExtent[4] = 0;
+        dataExtent[1] = static_cast<int>(naxes[0] - 1);
+        dataExtent[3] = static_cast<int>(naxes[1] - 1);
+        dataExtent[5] = static_cast<int>(naxes[2] - 1);
+    }
+
     if (ReadSubExtent)
     {
         for (int i = 0; i < 6; ++i)
@@ -170,14 +203,22 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     {
         long dimX = dataExtent[1] - dataExtent[0] + 1;
         long dimY = dataExtent[3] - dataExtent[2] + 1;
-        long dimZ = dataExtent[5] - dataExtent[4] + 1;
-        long nels = dimX * dimY * dimZ;
+        long nels = dimX * dimY;;
+        if (ImgType == imageType::FITS3DIMAGE)
+        {
+            long dimZ = dataExtent[5] - dataExtent[4] + 1;
+            nels *= dimZ;
+        }
         size_t size = sizeof(float) * nels;
         size_t maxSize = static_cast<unsigned long>(CubeMaxSize) * 1024UL * 1024UL;
 
         if (size > maxSize)
         {
-            int factor = ceil(cbrt(1.0 * size / maxSize));
+            int factor;
+            if (ImgType == imageType::FITS2DIMAGE)
+                factor = ceil(sqrt(1.0 * size / maxSize));
+            else // if (ImgType == imageType::FITS3DIMAGE) always true
+                factor = ceil(cbrt(1.0 * size / maxSize));
             SetScaleFactor(factor);
         }
     }
