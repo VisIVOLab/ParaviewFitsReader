@@ -45,13 +45,14 @@ vtkFitsReader::~vtkFitsReader()
 void vtkFitsReader::PrintSelf(ostream &os, vtkIndent indent)
 {
     this->Superclass::PrintSelf(os, indent);
-    os << indent << "ImageType: " << (imageType) ImgType;
+    os << indent << "ImageType: " << (imageType)ImgType;
     os << indent << "ReadSubExtent: " << std::boolalpha << ReadSubExtent;
-    if ((imageType) ImgType == imageType::FITS2DIMAGE)
-        os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " " << SubExtent[3];
-    else if ((imageType) ImgType == imageType::FITS3DIMAGE)
-        os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " " << SubExtent[3]
-           << " " << SubExtent[4] << " " << SubExtent[5];
+    if ((imageType)ImgType == imageType::FITS2DIMAGE)
+        os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " "
+           << SubExtent[3];
+    else if ((imageType)ImgType == imageType::FITS3DIMAGE)
+        os << indent << indent << "SubExtent: " << SubExtent[0] << " " << SubExtent[1] << " " << SubExtent[2] << " "
+           << SubExtent[3] << " " << SubExtent[4] << " " << SubExtent[5];
     os << indent << "AutoScale: " << std::boolalpha << AutoScale;
     os << indent << "ScaleFactor: " << ScaleFactor;
 }
@@ -159,7 +160,7 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     else
     {
         vtkErrorMacro(<< "(#" << ProcId << ") [FITS Header] Error: header proclaims erroneous number of axes.");
-        return 1;
+        return 0;
     }
 
     int dataExtent[6];
@@ -203,7 +204,8 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     {
         long dimX = dataExtent[1] - dataExtent[0] + 1;
         long dimY = dataExtent[3] - dataExtent[2] + 1;
-        long nels = dimX * dimY;;
+        long nels = dimX * dimY;
+
         if (ImgType == imageType::FITS3DIMAGE)
         {
             long dimZ = dataExtent[5] - dataExtent[4] + 1;
