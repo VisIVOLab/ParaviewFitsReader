@@ -58,7 +58,6 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
     vtkSetMacro(ScaleFactor, int);
 
     vtkGetMacro(ImgType, int);
-    vtkSetMacro(ImgType, int);
 
   protected:
     vtkFitsReader();
@@ -79,7 +78,7 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
     vtkNew<vtkTable> table;
 
     /**
-     * @brief This property specifies if the image is an image or a cube.
+     * @brief This property specifies if the FITS file is an image (2D) or a cube (3D).
      *
      */
     int ImgType;

@@ -56,6 +56,17 @@
       </IntVectorProperty>
 
       <IntVectorProperty
+        name="ImgType"
+        command="GetImgType"
+        information_only="1"
+        number_of_elements="1"
+        default_values="0">
+        <Documentation>
+          This property specifies if the FITS file is an image (2D) or a cube (3D).
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
         name="CubeMaxSize"
         command="SetCubeMaxSize"
         number_of_elements="1"
