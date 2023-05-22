@@ -14,7 +14,9 @@ class vtkTable;
 
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
+
   public:
+    enum imageType { EMPTY, FITS2DIMAGE, FITS3DIMAGE };
     static vtkFitsReader *New();
     vtkTypeMacro(vtkFitsReader, vtkMPIImageReader);
     void PrintSelf(ostream &os, vtkIndent indent) override;
@@ -28,7 +30,7 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
      */
     const char *GetFileExtensions() override
     {
-        return ".fits";
+        return ".fits .fit .fts";
     }
 
     /**
@@ -55,6 +57,8 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
     vtkGetMacro(ScaleFactor, int);
     vtkSetMacro(ScaleFactor, int);
 
+    vtkGetMacro(ImgType, int);
+
   protected:
     vtkFitsReader();
     ~vtkFitsReader() override;
@@ -72,6 +76,12 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
      *
      */
     vtkNew<vtkTable> table;
+
+    /**
+     * @brief This property specifies if the FITS file is an image (2D) or a cube (3D).
+     *
+     */
+    int ImgType;
 
     /**
      * @brief   Read the header and store the key-value pairs in g.
