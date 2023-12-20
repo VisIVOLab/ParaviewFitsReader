@@ -93,6 +93,55 @@
         name="ScaleFactorInfo">
       </IntVectorProperty>
 
+      <IntVectorProperty
+        name="ReadAsPV"
+        command="SetReadAsPVSlice"
+        information_property="ReadAsPVInfo"
+        number_of_elements="1"
+        default_values="0">
+        <BooleanDomain name="bool"/>
+        <Documentation>
+          This property specifies whether to read the data as a position-velocity slice.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        command="GetReadAsPVSlice"
+        information_only="1"
+        name="ReadAsPVInfo">
+        <BooleanDomain name="bool"/>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        name="StartPoint"
+        command="SetStartPoint"
+        number_of_elements="2"
+        default_values="0 0">
+        <Documentation>
+          Define the start of the line. Default is (0, 0).
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        name="EndPoint"
+        command="SetEndPoint"
+        number_of_elements="2"
+        default_values="1 1" >
+        <Documentation>
+            Define the end of the line. Default is (1, 1).
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        name="ZBounds"
+        command="SetZBounds"
+        number_of_elements="2"
+        default_values="0 1" >
+        <Documentation>
+            Define the bounds of the slice in the Z-axis. Default is (0, 1).
+        </Documentation>
+      </IntVectorProperty>
+
       <Hints>
         <ReaderFactory extensions="fits fit fts" file_description="FITS Files"/>
       </Hints>
