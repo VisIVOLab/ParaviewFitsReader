@@ -1,6 +1,21 @@
-# FitsReader Plugin
-ParaView/VTK Reader for visualization of FITS format.
+FitsReader Plugin
 
-The plugin requires a ParaView build compiled with MPI support and [CFITSIO](https://heasarc.gsfc.nasa.gov/fitsio/) installed.
+---------------------------------------------------------
 
-The CMake variable `CFITSIO_ROOT_DIR` can be used to select an installation path for CFITSIO if it is not detected automatically.
+ParaView/VTK reader for visualization of FITS format.
+
+The reader is adapted from [SlicerAstro](https://github.com/Punzo/SlicerAstro) vtkFits
+
+
+
+Contact Info:
+------------
+
+
+Pre-requirements for building FitsReader Plugin:
+----------------------------------------------------
+
+
+
+
+ccmake -DCFITSIO_INC_PATH=/opt/cfitsio-3.49/include -DCFITSIO_LIB_PATH=/opt/cfitsio-3.49/lib -DBOOST_INC_PATH=/opt/boost_1_75_0 -DQt5_DIR=/Users/fxbio6600/Qt/5.15.2/clang_64/lib/cmake/Qt5 ..
