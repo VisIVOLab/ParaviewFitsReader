@@ -90,6 +90,8 @@ int vtkFitsReader::ReadFITSHeader()
         return 2;
     }
 
+    double tempCDELT3, tempCRVAL3, tempCPIX3;
+
     // Get header keys and values
     char name[FLEN_KEYWORD];
     char value[FLEN_VALUE];
@@ -107,7 +109,17 @@ int vtkFitsReader::ReadFITSHeader()
 
         table->SetValue(static_cast<vtkIdType>(i - 1), 0, vtkVariant(sName));
         table->SetValue(static_cast<vtkIdType>(i - 1), 1, vtkVariant(sValue));
+        if (sName == "CDELT3")
+            tempCDELT3 = std::stod(sValue);
+        if (sName == "CRPIX3")
+            tempCPIX3 = std::stod(sValue);
+        if (sName == "CRVAL3")
+            tempCRVAL3 = std::stod(sValue);
     }
+
+    this->CDELT3 = tempCDELT3;
+    this->initSlice = tempCRVAL3 - (tempCDELT3 * (tempCPIX3 - 1));
+
 
     fits_close_file(fptr, &status);
     return 0;
@@ -119,6 +131,25 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     int ProcId = ProcInfo->GetPartitionId();
     vtkDebugMacro(<< "(#" << ProcId << ") RequestInformation " << FileName);
 
+    if (this->GetFileName() == nullptr)
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") Either a FileName or FilePrefix must be specified.");
+        return 0;
+    }
+    if (ProcId == 0)
+    {
+        switch (this->GetReadType()) {
+        case readerType::RAW:
+            vtkDebugMacro(<< " [ReqInfoReadType] Reading file as RAW:");
+            break;
+        case readerType::MOMENTMAP:
+            vtkDebugMacro(<< " [ReqInfoReadType] Reading file as RAW:");
+            return MomentMapRequestInfo(ProcId, outVec);
+            break;
+        default:
+            break;
+        }
+    }
     fitsfile *fptr;
     int ReadStatus = 0;
     if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
@@ -243,12 +274,66 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
         ReadFITSHeader();
         vtkDebugMacro(<< "(#" << ProcId << ") FITS Info"
                       << "\n  # of processors: " << ProcInfo->GetNumberOfLocalPartitions()
-                      << "\n  FileName: " << FileName << "\n  ImgType: " << imgtype << "\n  NAXIS: " << naxis
+                      << "\n  FileName: " << FileName << "\n  Reading as: Raw\n  ImgType: " << imgtype << "\n  NAXIS: " << naxis
                       << "\n  NAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
                       << "\n  AutoScale: " << AutoScale << "\n  ScaleFactor: " << ScaleFactor << "\n  DataExtent = ["
                       << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3]
                       << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
     }
+
+    return 1;
+}
+
+int vtkFitsReader::MomentMapRequestInfo(int ProcId, vtkInformationVector *outVec)
+{
+    fitsfile *fptr;
+    int ReadStatus = 0;
+    if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_open_data");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    // Get axis information
+    int maxaxis = 3;
+    int imgtype = 0;
+    int naxis = 0;
+    long naxes[maxaxis];
+
+    if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_get_img_param");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    if (fits_close_file(fptr, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_close_file");
+        fits_report_error(stderr, ReadStatus);
+        // We should have axes information, so we do not abort (i.e. no return here)
+    }
+
+    ImgType = imageType::FITS2DIMAGE;
+
+    int dataExtent[6];
+    // Calculate and adjust DataExtent
+    dataExtent[0] = dataExtent[2] = dataExtent[4] = dataExtent[5] = 0;
+    dataExtent[1] = static_cast<int>(naxes[0] - 1);
+    dataExtent[3] = static_cast<int>(naxes[1] - 1);
+
+    vtkInformation *outInfo = outVec->GetInformationObject(0);
+    outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 0);
+    outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
+
+    ReadFITSHeader();
+    vtkDebugMacro(<< "(#" << ProcId << ") FITS Info"
+                  << "\n  FileName: " << FileName << "\n  Reading as: MomentMap order " << this->MomentOrder << "\n  ImgType: " << imgtype << "\n  NAXIS: " << naxis
+                  << "\n  NAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
+                  << "\n  AutoScale: " << AutoScale << "\n  ScaleFactor: " << ScaleFactor << "\n  DataExtent = ["
+                  << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3]
+                  << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
 
     return 1;
 }
@@ -262,6 +347,20 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     {
         vtkErrorMacro(<< "(#" << ProcId << ") Either a FileName or FilePrefix must be specified.");
         return 0;
+    }
+    if (ProcId == 0)
+    {
+        switch (this->GetReadType()) {
+        case readerType::RAW:
+            vtkDebugMacro(<< " [ReadType] Reading file as RAW:");
+            break;
+        case readerType::MOMENTMAP:
+            vtkDebugMacro(<< " [ReadType] Reading file as Moment Map:");
+            return MomentMapRequestData(ProcId, outVec);
+            break;
+        default:
+            break;
+        }
     }
 
     // Get Data Extent assigned to this process
@@ -390,6 +489,61 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     return 1;
 }
 
+int vtkFitsReader::MomentMapRequestData(int ProcId, vtkInformationVector *outVec)
+{
+    fitsfile *fptr;
+    int ReadStatus = 0;
+    if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_open_data");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    int dataExtent[6];
+    vtkInformation *outInfo = outVec->GetInformationObject(0);
+    outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), dataExtent);
+    vtkDebugMacro(<< " Data extent retrieved is [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "].");
+
+    int maxaxis = 3;
+    int imgtype = 0;
+    int naxis = 0;
+    long naxes[maxaxis];
+
+    if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_get_img_param");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    if (fits_close_file(fptr, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_close_file");
+        fits_report_error(stderr, ReadStatus);
+        // We should have axes information, so we do not abort (i.e. no return here)
+    }
+
+    ImgType = imageType::FITS2DIMAGE;
+
+    // Calculate and adjust DataExtent
+    dataExtent[0] = dataExtent[2] = dataExtent[4] = dataExtent[5] = 0;
+    dataExtent[1] = static_cast<int>(naxes[0] - 1);
+    dataExtent[3] = static_cast<int>(naxes[1] - 1);
+
+    outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 0);
+    outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
+
+    auto scalars = this->CalculateMoment(this->GetMomentOrder());
+
+    vtkImageData *data = vtkImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+    data->SetExtent(dataExtent);
+    data->SetOrigin(0.0, 0.0, 0.0);
+    data->GetPointData()->SetScalars(scalars);
+
+    return 1;
+}
+
 int vtkFitsReader::FillOutputPortInformation(int port, vtkInformation *info)
 {
     switch (port)
@@ -403,4 +557,224 @@ int vtkFitsReader::FillOutputPortInformation(int port, vtkInformation *info)
     }
 
     return 1;
+}
+
+vtkNew<vtkFloatArray> vtkFitsReader::CalculateMoment(int order)
+{
+    vtkDebugMacro(<< " Calculating moment map " << order);
+    ReadFITSHeader();
+    fitsfile *fptr;
+    int status = 0;
+    if (fits_open_file(&fptr, this->GetFileName(), READONLY, &status))
+        vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+    int nfound = 0;
+    long naxes[3];
+    if (fits_read_keys_lng(fptr, "NAXIS", 1, 3, naxes, &nfound, &status))
+        vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+    long buffsize = naxes[0] * naxes[1];
+    float *buffer = new float[buffsize];
+    float *scalars = new float[buffsize];
+    std::fill_n(scalars, buffsize, 0);
+
+    int anynull = 0;
+    float fpixel = 1, nullval = 0;
+
+    double vdelt = std::abs(CDELT3);
+
+    switch (order) {
+    case 0: {
+        // the integrated value of the spectrum
+        for (int slice = 0; slice < naxes[2]; ++slice) {
+            if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
+                vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+            for (long i = 0; i < buffsize; ++i) {
+                if (std::isfinite(buffer[i])) {
+                    scalars[i] += buffer[i] * vdelt;
+                }
+            }
+
+            fpixel += buffsize;
+        }
+
+        break;
+    }
+    case 1: {
+        // the intensity weighted coordinate
+        float m0[buffsize];
+        for (int slice = 0; slice < naxes[2]; ++slice) {
+            if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
+                vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+            for (long i = 0; i < buffsize; ++i) {
+                if (std::isfinite(buffer[i])) {
+                    m0[i] += buffer[i] * vdelt;
+                }
+            }
+
+            fpixel += buffsize;
+        }
+
+        fpixel = 1;
+
+        for (int slice = 0; slice < naxes[2]; ++slice) {
+            double velocityValue = initSlice + CDELT3 * (slice);
+            if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
+                vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+            for (long i = 0; i < buffsize; ++i) {
+                auto val = m0[i];
+                if (val != 0 && std::isfinite(buffer[i])) {
+                    scalars[i] = scalars[i] + (buffer[i] * velocityValue * vdelt) / val;
+                }
+            }
+
+            fpixel += buffsize;
+        }
+
+        break;
+    }
+    case 2: {
+        // the intensity weighted dispersion of the coordinate
+
+        // the intensity weighted coordinate
+        float m0[buffsize];
+        std::cerr << "Calculated moment 0 for moment 1 calculation." << std::endl;
+        for (int slice = 0; slice < naxes[2]; ++slice) {
+            if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
+                vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+            for (long i = 0; i < buffsize; ++i) {
+                if (std::isfinite(buffer[i])) {
+                    m0[i] += buffer[i] * vdelt;
+                }
+            }
+
+            fpixel += buffsize;
+        }
+
+        fpixel = 1;
+
+        // Moment 1
+        float m1[buffsize];
+        std::fill_n(m1, buffsize, 0);
+        for (int slice = 0; slice < naxes[2]; ++slice) {
+            double velocityValue = initSlice + CDELT3 * (slice);
+
+            if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
+                vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+            for (long i = 0; i < buffsize; ++i) {
+                auto val = m0[i];
+                if (val != 0 && std::isfinite(buffer[i])) {
+                    m1[i] = m1[i] + (buffer[i] * velocityValue * vdelt) / val;
+                }
+            }
+
+            fpixel += buffsize;
+        }
+
+        // Moment 2
+        fpixel = 1;
+        for (int slice = 0; slice < naxes[2]; ++slice) {
+            double velocityValue = initSlice + CDELT3 * (slice);
+
+            if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
+                vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+            for (long i = 0; i < buffsize; ++i) {
+                auto val = m0[i];
+                if (val != 0 && std::isfinite(buffer[i])) {
+                    scalars[i] = scalars[i]
+                                 + (buffer[i] * std::pow(velocityValue - m1[i], 2) * vdelt)
+                                       / val;
+                }
+            }
+
+            fpixel += buffsize;
+        }
+
+        // for (int i = 0; i < buffsize; ++i) {
+        //     scalars[i] = std::sqrt(scalars[i]);
+        // }
+
+        break;
+    }
+    case 6: {
+        // root mean square of the spectrum (noise map)
+        for (int slice = 0; slice < naxes[2]; ++slice) {
+            if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
+                vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+            for (long i = 0; i < buffsize; ++i) {
+                if (std::isfinite(buffer[i])) {
+                    scalars[i] += buffer[i] * buffer[i];
+                }
+            }
+
+            fpixel += buffsize;
+        }
+
+        for (int i = 0; i < buffsize; ++i) {
+            scalars[i] = std::sqrt(scalars[i] / buffsize);
+        }
+
+        break;
+    }
+    case 8: {
+        // maximum value of the spectrum (peak map)
+        for (int slice = 0; slice < naxes[2]; ++slice) {
+            if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
+                vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+            for (long i = 0; i < buffsize; ++i) {
+                if (std::isfinite(buffer[i])) {
+                    scalars[i] = fmax(scalars[i], buffer[i]);
+                }
+            }
+
+            fpixel += buffsize;
+        }
+
+        break;
+    }
+    case 10: {
+        // the minimum value of the spectrum
+        for (int slice = 0; slice < naxes[2]; ++slice) {
+            if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
+                vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+
+            for (long i = 0; i < buffsize; ++i) {
+                if (std::isfinite(buffer[i])) {
+                    scalars[i] = fmin(scalars[i], buffer[i]);
+                }
+            }
+
+            fpixel += buffsize;
+        }
+
+        break;
+    }
+    }
+
+    delete[] buffer;
+
+    float datamin, datamax;
+    double mean, rms;
+    if (fits_img_stats_float(scalars, naxes[0], naxes[1], 0, 0, 0, &datamin, &datamax,
+                             &mean, &rms, 0, 0, 0, 0, &status)) {
+        fits_report_error(stderr, status);
+    }
+
+    if (fits_close_file(fptr, &status)) {
+        vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
+    }
+
+    vtkNew<vtkFloatArray> values;
+    values->SetName("FITSImage");
+    values->SetNumberOfComponents(1);
+    values->SetVoidArray(scalars, buffsize, 0, vtkAbstractArray::VTK_DATA_ARRAY_DELETE);
+    return values;
 }

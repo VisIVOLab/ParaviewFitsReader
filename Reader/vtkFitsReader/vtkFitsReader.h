@@ -7,6 +7,7 @@
 #ifndef __vtkFitsReader_h
 #define __vtkFitsReader_h
 
+#include <vtkFloatArray.h>
 #include <vtkMPIImageReader.h>
 #include <vtkNew.h>
 
@@ -15,114 +16,147 @@ class vtkTable;
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
 
-  public:
-    enum imageType { EMPTY, FITS2DIMAGE, FITS3DIMAGE };
-    static vtkFitsReader *New();
-    vtkTypeMacro(vtkFitsReader, vtkMPIImageReader);
-    void PrintSelf(ostream &os, vtkIndent indent) override;
+    public:
+        enum imageType { EMPTY, FITS2DIMAGE, FITS3DIMAGE };
+        enum readerType { RAW, MOMENTMAP };
+        static vtkFitsReader *New();
+        vtkTypeMacro(vtkFitsReader, vtkMPIImageReader);
+        void PrintSelf(ostream &os, vtkIndent indent) override;
 
-    int CanReadFile(VTK_FILEPATH const char *fname) override;
+        int CanReadFile(VTK_FILEPATH const char *fname) override;
 
-    /**
-     * Get the file extensions for this format.
-     * Returns a string with a space separated list of extensions in
-     * the format .extension
-     */
-    const char *GetFileExtensions() override
-    {
-        return ".fits .fit .fts";
-    }
+        /**
+         * Get the file extensions for this format.
+         * Returns a string with a space separated list of extensions in
+         * the format .extension
+         */
+        const char *GetFileExtensions() override
+        {
+            return ".fits .fit .fts";
+        }
 
-    /**
-     * Return a descriptive name for the file format that might be useful in a
-     * GUI.
-     */
-    const char *GetDescriptiveName() override
-    {
-        return "FITS";
-    }
+        /**
+         * Return a descriptive name for the file format that might be useful in a
+         * GUI.
+         */
+        const char *GetDescriptiveName() override
+        {
+            return "Flexible Image Transport System (FITS)";
+        }
 
-    vtkGetMacro(ReadSubExtent, bool);
-    vtkSetMacro(ReadSubExtent, bool);
+        vtkGetMacro(ReadType, int);
+        /**
+         * @brief SetReadType
+         * Function to set the ReadType property.
+         * @param type
+         * 0 is reading the file raw.
+         * 1 is reading a moment map (see MomentOrder).
+         */
+        void SetReadType(int type) {this->ReadType = (readerType) type;};
 
-    vtkGetVector6Macro(SubExtent, int);
-    vtkSetVector6Macro(SubExtent, int);
+        vtkGetMacro(MomentOrder, int);
+        vtkSetMacro(MomentOrder, int);
 
-    vtkGetMacro(AutoScale, bool);
-    vtkSetMacro(AutoScale, bool);
+        vtkGetMacro(ReadSubExtent, bool);
+        vtkSetMacro(ReadSubExtent, bool);
 
-    vtkGetMacro(CubeMaxSize, int);
-    vtkSetMacro(CubeMaxSize, int);
+        vtkGetVector6Macro(SubExtent, int);
+        vtkSetVector6Macro(SubExtent, int);
 
-    vtkGetMacro(ScaleFactor, int);
-    vtkSetMacro(ScaleFactor, int);
+        vtkGetMacro(AutoScale, bool);
+        vtkSetMacro(AutoScale, bool);
 
-    vtkGetMacro(ImgType, int);
+        vtkGetMacro(CubeMaxSize, int);
+        vtkSetMacro(CubeMaxSize, int);
 
-  protected:
-    vtkFitsReader();
-    ~vtkFitsReader() override;
+        vtkGetMacro(ScaleFactor, int);
+        vtkSetMacro(ScaleFactor, int);
 
-    int RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
-    int RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
-    int FillOutputPortInformation(int port, vtkInformation *info) override;
+        int GetImgType() {return this->ImgType;};
 
-  private:
-    vtkFitsReader(const vtkFitsReader &) = delete;
-    vtkFitsReader &operator=(const vtkFitsReader &) = delete;
+    protected:
+        vtkFitsReader();
+        ~vtkFitsReader() override;
 
-    /**
-     * @brief FITS Header
-     *
-     */
-    vtkNew<vtkTable> table;
+        int RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
+        int RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec) override;
+        int FillOutputPortInformation(int port, vtkInformation *info) override;
 
-    /**
-     * @brief This property specifies if the FITS file is an image (2D) or a cube (3D).
-     *
-     */
-    int ImgType;
+    private:
+        vtkFitsReader(const vtkFitsReader &) = delete;
+        vtkFitsReader &operator=(const vtkFitsReader &) = delete;
 
-    /**
-     * @brief   Read the header and store the key-value pairs in g.
-     *          This function ignores HISTORY, COMMENT and empty keywords.
-     *
-     * @return  0 on success, greater than 0 otherwise.
-     */
-    int ReadFITSHeader();
+        /**
+         * @brief FITS Header
+         *
+         */
+        vtkNew<vtkTable> table;
 
-    /**
-     * @brief This property specifies if the reader must read a subset of the
-     * data.
-     *
-     */
-    bool ReadSubExtent;
+        /**
+         * @brief ReadType This property specifies what algorithm the reader is using to read the FITS file.
+         * 0 is reading the file raw.
+         * 1 is reading a moment map (see MomentOrder).
+         */
+        readerType ReadType;
 
-    /**
-     * @brief This property specifies the sub-extent to read. It is ignored if
-     * ReadSubExtent is disabled.
-     *
-     */
-    int SubExtent[6];
+        /**
+         * @brief This property specifies if the FITS file is an image (2D) [1] or a cube (3D) [2].
+         *
+         */
+        imageType ImgType;
 
-    /**
-     * @brief This property specifies whether to use a ScaleFactor by default.
-     *
-     */
-    bool AutoScale;
+        /**
+         * @brief   Read the header and store the key-value pairs in g.
+         *          This function ignores HISTORY, COMMENT and empty keywords.
+         *
+         * @return  0 on success, greater than 0 otherwise.
+         */
+        int ReadFITSHeader();
 
-    /**
-     * @brief This property can be used along with AutoScale to use at most MaxCubeSize (MB)
-     *  for reading the cube.
-     *
-     */
-    int CubeMaxSize;
+        /**
+         * @brief MomentOrder This property specifies which order of the moment map to read.
+         */
+        int MomentOrder;
 
-    /**
-     * @brief This property can be used to read only every inc-th pixel along the
-     * dimensions of the image.
-     *
-     */
-    int ScaleFactor;
+        /**
+         * @brief This property specifies if the reader must read a subset of the
+         * data.
+         *
+         */
+        bool ReadSubExtent;
+
+        /**
+         * @brief This property specifies the sub-extent to read. It is ignored if
+         * ReadSubExtent is disabled.
+         *
+         */
+        int SubExtent[6];
+
+        /**
+         * @brief This property specifies whether to use a ScaleFactor by default.
+         *
+         */
+        bool AutoScale;
+
+        /**
+         * @brief This property can be used along with AutoScale to use at most MaxCubeSize (MB)
+         *  for reading the cube.
+         *
+         */
+        int CubeMaxSize;
+
+        /**
+         * @brief This property can be used to read only every inc-th pixel along the
+         * dimensions of the image.
+         *
+         */
+        int ScaleFactor;
+
+        vtkNew<vtkFloatArray>CalculateMoment(int order);
+        int MomentMapRequestInfo(int ProcId, vtkInformationVector* outVec);
+        int MomentMapRequestData(int ProcId, vtkInformationVector* outVec);
+
+        double CDELT3, initSlice;
 };
-#endif
+
+#endif //__vtkFitsReader_h
