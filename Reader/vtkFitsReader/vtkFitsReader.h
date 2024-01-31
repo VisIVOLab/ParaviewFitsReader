@@ -15,11 +15,20 @@ class vtkTable;
 class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
 {
 
+<<<<<<< Updated upstream
   public:
     enum imageType { EMPTY, FITS2DIMAGE, FITS3DIMAGE };
     static vtkFitsReader *New();
     vtkTypeMacro(vtkFitsReader, vtkMPIImageReader);
     void PrintSelf(ostream &os, vtkIndent indent) override;
+=======
+    public:
+        enum imageType { EMPTY, FITS2DIMAGE, FITS3DIMAGE };
+        enum readerType { RAW, MOMENTMAP, PVSLICE };
+        static vtkFitsReader *New();
+        vtkTypeMacro(vtkFitsReader, vtkMPIImageReader);
+        void PrintSelf(ostream &os, vtkIndent indent) override;
+>>>>>>> Stashed changes
 
     int CanReadFile(VTK_FILEPATH const char *fname) override;
 
@@ -42,14 +51,36 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
         return "FITS";
     }
 
+<<<<<<< Updated upstream
     vtkGetMacro(ReadSubExtent, bool);
     vtkSetMacro(ReadSubExtent, bool);
+=======
+        vtkGetMacro(ReadType, int);
+        /**
+         * @brief SetReadType
+         * Function to set the ReadType property.
+         * @param type
+         * 0 is reading the file raw.
+         * 1 is reading a moment map (see MomentOrder).
+         * 2 is reading a position-velocity slice.
+         */
+        void SetReadType(int type) {this->ReadType = (readerType) type;};
+>>>>>>> Stashed changes
 
     vtkGetVector6Macro(SubExtent, int);
     vtkSetVector6Macro(SubExtent, int);
 
+<<<<<<< Updated upstream
     vtkGetMacro(AutoScale, bool);
     vtkSetMacro(AutoScale, bool);
+=======
+        void SetStartPoint(int x, int y);
+        void SetEndPoint(int x, int y);
+        void SetZBounds(int z1, int z2);
+
+        vtkGetMacro(ReadSubExtent, bool);
+        vtkSetMacro(ReadSubExtent, bool);
+>>>>>>> Stashed changes
 
     vtkGetMacro(CubeMaxSize, int);
     vtkSetMacro(CubeMaxSize, int);
@@ -85,11 +116,21 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
      */
     vtkNew<vtkTable> table;
 
+<<<<<<< Updated upstream
     /**
      * @brief This property specifies if the FITS file is an image (2D) or a cube (3D).
      *
      */
     imageType ImgType;
+=======
+        /**
+         * @brief ReadType This property specifies what algorithm the reader is using to read the FITS file.
+         * 0 is reading the file raw.
+         * 1 is reading a moment map (see MomentOrder).
+         * 2 is reading a position-velocity slice.
+         */
+        readerType ReadType;
+>>>>>>> Stashed changes
 
     /**
      * @brief   Read the header and store the key-value pairs in g.
@@ -113,11 +154,35 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
      */
     int SubExtent[6];
 
+<<<<<<< Updated upstream
     /**
      * @brief This property specifies whether to use a ScaleFactor by default.
      *
      */
     bool AutoScale;
+=======
+        /**
+         * @brief StartPoint This property specifies the start point for a PV slice.
+         */
+        std::pair<int, int> StartPoint;
+
+        /**
+         * @brief EndPoint This property specifies the end point for a PV slice.
+         */
+        std::pair<int, int> EndPoint;
+
+        /**
+         * @brief ZBounds This property specifies the z-bounds for a PV slice.
+         */
+        std::pair<int, int> ZBounds;
+
+        /**
+         * @brief This property specifies if the reader must read a subset of the
+         * data.
+         *
+         */
+        bool ReadSubExtent;
+>>>>>>> Stashed changes
 
     /**
      * @brief This property can be used along with AutoScale to use at most MaxCubeSize (MB)
@@ -144,6 +209,7 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
      */
     std::pair<int, int> PVStart;
 
+<<<<<<< Updated upstream
     /**
      * @brief This property specifies the end coordinate for the PV slice.
      */
@@ -165,6 +231,19 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
     int Convert2DIndexToLinear(const int row, const int col, const int rowWidth){
         return rowWidth * row + col;
     }
+=======
+        vtkNew<vtkFloatArray>CalculateMoment(int order);
+        int MomentMapRequestInfo(int ProcId, vtkInformationVector* outVec);
+        int MomentMapRequestData(int ProcId, vtkInformationVector* outVec);
+        int PVSliceRequestInfo(int ProcId, vtkInformationVector* outVec);
+        int PVSliceRequestData(int ProcId, vtkInformationVector* outVec);
+
+        double CDELT3, initSlice;
+
+        int Convert2DIndexToLinear(const int row, const int col, const int rowWidth){
+            return rowWidth * row + col;
+        }
+>>>>>>> Stashed changes
 };
 
 /**
@@ -172,7 +251,11 @@ class VTK_EXPORT vtkFitsReader : public vtkMPIImageReader
  */
 template<typename T>
 static const T interpolate(const T& fromPointA, const T& toPointB, float factor){
+<<<<<<< Updated upstream
     return ((1.0 - factor) * fromPointA) + (factor * toPointB);
+=======
+        return ((1.0 - factor) * fromPointA) + (factor * toPointB);
+>>>>>>> Stashed changes
 }
 
 /**
@@ -180,6 +263,13 @@ static const T interpolate(const T& fromPointA, const T& toPointB, float factor)
  */
 template<typename T>
 static const T interpolate(const T& fromPointA1, const T& fromPointA2, const T& toPointB1, const T& toPointB2, float factor1, float factor2){
+<<<<<<< Updated upstream
     return interpolate(interpolate(fromPointA1, fromPointA2, factor1), interpolate(toPointB1, toPointB2, factor1), factor2);
 }
 #endif
+=======
+        return interpolate(interpolate(fromPointA1, fromPointA2, factor1), interpolate(toPointB1, toPointB2, factor1), factor2);
+}
+
+#endif //__vtkFitsReader_h
+>>>>>>> Stashed changes

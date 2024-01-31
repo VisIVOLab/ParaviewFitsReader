@@ -228,6 +228,21 @@ int vtkFitsReader::CanReadFile(const char *fname)
     return 1;
 }
 
+void vtkFitsReader::SetStartPoint(int x, int y)
+{
+    this->StartPoint = std::make_pair(x, y);
+}
+
+void vtkFitsReader::SetEndPoint(int x, int y)
+{
+    this->EndPoint = std::make_pair(x, y);
+}
+
+void vtkFitsReader::SetZBounds(int z1, int z2)
+{
+    this->ZBounds = std::make_pair(z1, z2);
+}
+
 int vtkFitsReader::ReadFITSHeader()
 {
     table->Initialize();
@@ -285,6 +300,31 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     int ProcId = ProcInfo->GetPartitionId();
     vtkDebugMacro(<< "(#" << ProcId << ") RequestInformation " << FileName);
 
+<<<<<<< Updated upstream
+=======
+    if (this->GetFileName() == nullptr)
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") Either a FileName or FilePrefix must be specified.");
+        return 0;
+    }
+    if (ProcId == 0)
+    {
+        switch (this->GetReadType()) {
+        case readerType::RAW:
+            vtkDebugMacro(<< " [ReqInfoReadType] Reading file as RAW:");
+            break;
+        case readerType::MOMENTMAP:
+            vtkDebugMacro(<< " [ReqInfoReadType] Reading file as RAW:");
+            return MomentMapRequestInfo(ProcId, outVec);
+            break;
+        case readerType::PVSLICE:
+            vtkDebugMacro(<< " [ReqInfoReadType] Reading file as RAW:");
+            return PVSliceRequestInfo(ProcId, outVec);
+        default:
+            break;
+        }
+    }
+>>>>>>> Stashed changes
     fitsfile *fptr;
     int ReadStatus = 0;
     if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
@@ -420,6 +460,118 @@ int vtkFitsReader::RequestInformation(vtkInformation *, vtkInformationVector **,
     return 1;
 }
 
+<<<<<<< Updated upstream
+=======
+int vtkFitsReader::MomentMapRequestInfo(int ProcId, vtkInformationVector *outVec)
+{
+    fitsfile *fptr;
+    int ReadStatus = 0;
+    if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_open_data");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    // Get axis information
+    int maxaxis = 3;
+    int imgtype = 0;
+    int naxis = 0;
+    long naxes[maxaxis];
+
+    if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_get_img_param");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    if (fits_close_file(fptr, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_close_file");
+        fits_report_error(stderr, ReadStatus);
+        // We should have axes information, so we do not abort (i.e. no return here)
+    }
+
+    ImgType = imageType::FITS2DIMAGE;
+
+    int dataExtent[6];
+    // Calculate and adjust DataExtent
+    dataExtent[0] = dataExtent[2] = dataExtent[4] = dataExtent[5] = 0;
+    dataExtent[1] = static_cast<int>(naxes[0] - 1);
+    dataExtent[3] = static_cast<int>(naxes[1] - 1);
+
+    vtkInformation *outInfo = outVec->GetInformationObject(0);
+    outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 0);
+    outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
+
+    ReadFITSHeader();
+    vtkDebugMacro(<< "(#" << ProcId << ") FITS Info"
+                  << "\n  FileName: " << FileName << "\n  Reading as: MomentMap order " << this->MomentOrder << "\n  ImgType: " << imgtype << "\n  NAXIS: " << naxis
+                  << "\n  NAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
+                  << "\n  AutoScale: " << AutoScale << "\n  ScaleFactor: " << ScaleFactor << "\n  DataExtent = ["
+                  << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3]
+                  << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
+
+    return 1;
+}
+
+int vtkFitsReader::PVSliceRequestInfo(int ProcId, vtkInformationVector *outVec)
+{
+    fitsfile *fptr;
+    int ReadStatus = 0;
+    if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_open_data");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    // Get axis information
+    int maxaxis = 3;
+    int imgtype = 0;
+    int naxis = 0;
+    long naxes[maxaxis];
+
+    if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_get_img_param");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    if (fits_close_file(fptr, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_close_file");
+        fits_report_error(stderr, ReadStatus);
+        // We should have axes information, so we do not abort (i.e. no return here)
+    }
+
+    int xDim = std::ceil(std::sqrt(std::pow(EndPoint.first - StartPoint.first, 2) + std::pow(EndPoint.second - StartPoint.second, 2)));
+    int yDim = ZBounds.second - ZBounds.first + 1;
+
+    ImgType = imageType::FITS2DIMAGE;
+
+    int dataExtent[6];
+    // Calculate and adjust DataExtent
+    dataExtent[0] = dataExtent[2] = dataExtent[4] = dataExtent[5] = 0;
+    dataExtent[1] = xDim;
+    dataExtent[3] = yDim;
+
+    vtkInformation *outInfo = outVec->GetInformationObject(0);
+    outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 0);
+    outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
+    ReadFITSHeader();
+    vtkDebugMacro(<< "(#" << ProcId << ") FITS Info"
+                  << "\n  FileName: " << FileName << "\n  Reading as: PVSlice\n  ImgType: " << imgtype << "\n  NAXIS: " << naxis
+                  << "\n  NAXIS = [" << naxes[0] << ", " << naxes[1] << ", " << naxes[2] << "]"
+                  << "\n  AutoScale: " << AutoScale << "\n  ScaleFactor: " << ScaleFactor << "\n  DataExtent = ["
+                  << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3]
+                  << ", " << dataExtent[4] << ", " << dataExtent[5] << "]");
+    return 1;
+}
+
+>>>>>>> Stashed changes
 int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *outVec)
 {
     vtkProcessModule *ProcInfo;
@@ -433,8 +585,25 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
 
     if (this->GetReadAsPVSlice())
     {
+<<<<<<< Updated upstream
         this->ImgType = imageType::FITS2DIMAGE;
         return this->ReadPVSliceData(ProcId, outVec);
+=======
+        switch (this->GetReadType()) {
+        case readerType::RAW:
+            vtkDebugMacro(<< " [ReadType] Reading file as RAW:");
+            break;
+        case readerType::MOMENTMAP:
+            vtkDebugMacro(<< " [ReadType] Reading file as Moment Map:");
+            return MomentMapRequestData(ProcId, outVec);
+            break;
+        case readerType::PVSLICE:
+            vtkDebugMacro(<< " [ReadType] Reading file as PV Slice:");
+            return PVSliceRequestData(ProcId, outVec);
+        default:
+            break;
+        }
+>>>>>>> Stashed changes
     }
 
     // Get Data Extent assigned to this process
@@ -563,6 +732,185 @@ int vtkFitsReader::RequestData(vtkInformation *, vtkInformationVector **, vtkInf
     return 1;
 }
 
+<<<<<<< Updated upstream
+=======
+int vtkFitsReader::MomentMapRequestData(int ProcId, vtkInformationVector *outVec)
+{
+    fitsfile *fptr;
+    int ReadStatus = 0;
+    if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_open_data");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    int dataExtent[6];
+    vtkInformation *outInfo = outVec->GetInformationObject(0);
+    outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), dataExtent);
+    vtkDebugMacro(<< " Data extent retrieved is [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "].");
+
+    int maxaxis = 3;
+    int imgtype = 0;
+    int naxis = 0;
+    long naxes[maxaxis];
+
+    if (fits_get_img_param(fptr, maxaxis, &imgtype, &naxis, naxes, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_get_img_param");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    if (fits_close_file(fptr, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_close_file");
+        fits_report_error(stderr, ReadStatus);
+        // We should have axes information, so we do not abort (i.e. no return here)
+    }
+
+    ImgType = imageType::FITS2DIMAGE;
+
+    // Calculate and adjust DataExtent
+    dataExtent[0] = dataExtent[2] = dataExtent[4] = dataExtent[5] = 0;
+    dataExtent[1] = static_cast<int>(naxes[0] - 1);
+    dataExtent[3] = static_cast<int>(naxes[1] - 1);
+
+    outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 0);
+    outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
+
+    auto scalars = this->CalculateMoment(this->GetMomentOrder());
+
+    vtkImageData *data = vtkImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+    data->SetExtent(dataExtent);
+    data->SetOrigin(0.0, 0.0, 0.0);
+    data->GetPointData()->SetScalars(scalars);
+
+    return 1;
+}
+
+int vtkFitsReader::PVSliceRequestData(int ProcId, vtkInformationVector *outVec)
+{
+    int dataExtent[6];
+    vtkInformation *outInfo = outVec->GetInformationObject(0);
+    outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), dataExtent);
+
+    int xDim = std::ceil(std::sqrt(std::pow(this->EndPoint.first - this->StartPoint.first, 2) + std::pow(this->EndPoint.second - this->StartPoint.second, 2)));
+    int yDim = this->ZBounds.second - this->ZBounds.first + 1;
+    dataExtent[0] = dataExtent[2] = dataExtent[4] = dataExtent[5] = 0;
+    dataExtent[1] = xDim;
+    dataExtent[3] = yDim;
+    long nels = xDim * yDim * 1;
+
+    vtkDebugMacro(<< "(#" << ProcId << ") Creating PV Slice from " << FileName << " with DataExtent = [" << 0 << ", "
+                  << xDim << ", " << 0 << ", " << yDim << ", " << 0 << ", " << 1 << "]");
+
+    float *ptr;
+    try
+    {
+        ptr = new float[nels];
+    }
+    catch (const std::bad_alloc &e)
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") Data not allocated.");
+        return 0;
+    }
+
+    fitsfile *fptr;
+    int ReadStatus = 0;
+    if (fits_open_data(&fptr, FileName, READONLY, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_open_data");
+        fits_report_error(stderr, ReadStatus);
+        return 0;
+    }
+
+    auto botLeft = std::make_pair(std::min(StartPoint.first, this->EndPoint.first), std::min(StartPoint.second, this->EndPoint.second));
+    auto topRight = std::make_pair(std::max(StartPoint.first, this->EndPoint.first), std::max(StartPoint.second, this->EndPoint.second));
+    int rowNumber = topRight.second - botLeft.second + 1;//+1 is to make it inclusive on both ends of ZBounds
+    int columnNumber = topRight.first - botLeft.first + 1;//+1 is to make it inclusive on both ends of ZBounds
+
+    double xPixW = ((EndPoint.first - StartPoint.first) * 1.0f) / xDim;
+    double yPixW = ((EndPoint.second - StartPoint.second) * 1.0f) / xDim;
+    int sliceNels = rowNumber * columnNumber;
+
+    for (int rowCoord = 0; rowCoord < yDim; ++rowCoord){
+        vtkDebugMacro(<< "Entering loop with index " << rowCoord);
+        float *slicePtr;
+        try
+        {
+            vtkDebugMacro(<< "Allocating memory for slicePtr at index " << rowCoord);
+            slicePtr = new float[sliceNels];
+        }
+        catch (const std::bad_alloc &e)
+        {
+            vtkErrorMacro(<< "(#" << ProcId << ") Data not allocated.");
+            return 0;
+        }
+
+        // Read the extent from the FITS file
+        int sliceindex = rowCoord + this->ZBounds.first + 1;
+        long firstPixel[] = {botLeft.first, botLeft.second, sliceindex, 1};
+        long lastPixel[] = {topRight.first + 1, topRight.second + 1, sliceindex , 1};
+        long increment[] = {1, 1, 1, 1};
+        float nulval = 1e-30;
+        int anynul = 0;
+        if (fits_read_subset(fptr, TFLOAT, firstPixel, lastPixel, increment, &nulval, slicePtr, &anynul, &ReadStatus))
+        {
+            vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_read_subset\n" <<
+                          "First pixel: [" << firstPixel[0] << ", " << firstPixel[1] << ", " << firstPixel[2] << "]\n" <<
+                          "Last pixel: [" << lastPixel[0] << ", " << lastPixel[1] << ", " << lastPixel[2] << "]\n" <<
+                          "sliceNels: " << sliceNels);
+            fits_report_error(stderr, ReadStatus);
+            return 0;
+        }
+        vtkDebugMacro(<< "Successfully read subset for slice at index " << sliceindex);
+
+        for (int columnCoord = 0; columnCoord < xDim; columnCoord++){
+            auto idx = std::make_pair(StartPoint.first + (xPixW * rowCoord), StartPoint.second + (yPixW * rowCoord));
+            double d00, d01, d10, d11;
+            int i = std::floor(idx.first), j = std::floor(idx.second);
+            d00 = slicePtr[Convert2DIndexToLinear(i, j, columnNumber)];
+            d01 = slicePtr[Convert2DIndexToLinear(i, j + 1, columnNumber)];
+            d10 = slicePtr[Convert2DIndexToLinear(i + 1, j, columnNumber)];
+            d11 = slicePtr[Convert2DIndexToLinear(i + 1, j + 1, columnNumber)];
+            auto x = idx.first - i;
+            auto y = idx.second - j;
+            float pixIJ = interpolate(d00, d01, d10, d11, x, y);
+
+            //We're creating 2D image, so z-axis coord is always 0. Writing to 0th component.
+            ptr[Convert2DIndexToLinear(rowCoord, columnCoord, yDim)] = pixIJ;
+        }
+
+        vtkDebugMacro(<< "Loop at index " << rowCoord << " completed");
+        //        delete [] slicePtr;
+    }
+
+
+    if (fits_close_file(fptr, &ReadStatus))
+    {
+        vtkErrorMacro(<< "(#" << ProcId << ") [CFITSIO] Error fits_close_file");
+        fits_report_error(stderr, ReadStatus);
+        // We should have read the data, so we do not abort (i.e. no return failure here)
+    }
+
+    outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 1);
+    outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
+
+    vtkNew<vtkFloatArray> scalars;
+    scalars->SetName("FITSImage");
+    scalars->SetNumberOfComponents(1);
+    scalars->SetVoidArray(ptr, nels, 0, vtkAbstractArray::VTK_DATA_ARRAY_DELETE);
+
+    vtkImageData *data = vtkImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+    data->SetExtent(dataExtent);
+    data->SetOrigin(0.0, 0.0, 0.0);
+    data->SetSpacing(ScaleFactor, ScaleFactor, ScaleFactor);
+    data->GetPointData()->SetScalars(scalars);
+    return 1;
+}
+
+>>>>>>> Stashed changes
 int vtkFitsReader::FillOutputPortInformation(int port, vtkInformation *info)
 {
     switch (port)
