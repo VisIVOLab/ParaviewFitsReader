@@ -641,7 +641,6 @@ vtkNew<vtkFloatArray> vtkFitsReader::CalculateMoment(int order)
 
         // the intensity weighted coordinate
         float m0[buffsize];
-        std::cerr << "Calculated moment 0 for moment 1 calculation." << std::endl;
         for (int slice = 0; slice < naxes[2]; ++slice) {
             if (fits_read_img(fptr, TFLOAT, fpixel, buffsize, &nullval, buffer, &anynull, &status))
                 vtkErrorMacro(<< "[CFITSIO] Error: " << status << "!");
@@ -695,10 +694,6 @@ vtkNew<vtkFloatArray> vtkFitsReader::CalculateMoment(int order)
 
             fpixel += buffsize;
         }
-
-        // for (int i = 0; i < buffsize; ++i) {
-        //     scalars[i] = std::sqrt(scalars[i]);
-        // }
 
         break;
     }
@@ -773,7 +768,8 @@ vtkNew<vtkFloatArray> vtkFitsReader::CalculateMoment(int order)
     }
 
     vtkNew<vtkFloatArray> values;
-    values->SetName("FITSImage");
+    std::string name = "FITSImage" + std::to_string(order);
+    values->SetName(name.c_str());
     values->SetNumberOfComponents(1);
     values->SetVoidArray(scalars, buffsize, 0, vtkAbstractArray::VTK_DATA_ARRAY_DELETE);
     return values;
