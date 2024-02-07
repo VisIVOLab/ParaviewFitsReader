@@ -500,11 +500,6 @@ int vtkFitsReader::MomentMapRequestData(int ProcId, vtkInformationVector *outVec
         return 0;
     }
 
-    int dataExtent[6];
-    vtkInformation *outInfo = outVec->GetInformationObject(0);
-    outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), dataExtent);
-    vtkDebugMacro(<< " Data extent retrieved is [" << dataExtent[0] << ", " << dataExtent[1] << ", " << dataExtent[2] << ", " << dataExtent[3] << ", " << dataExtent[4] << ", " << dataExtent[5] << "].");
-
     int maxaxis = 3;
     int imgtype = 0;
     int naxis = 0;
@@ -526,12 +521,16 @@ int vtkFitsReader::MomentMapRequestData(int ProcId, vtkInformationVector *outVec
 
     ImgType = imageType::FITS2DIMAGE;
 
+    int dataExtent[6];
+    vtkInformation *outInfo = outVec->GetInformationObject(0);
+
     // Calculate and adjust DataExtent
     dataExtent[0] = dataExtent[2] = dataExtent[4] = dataExtent[5] = 0;
     dataExtent[1] = static_cast<int>(naxes[0] - 1);
     dataExtent[3] = static_cast<int>(naxes[1] - 1);
 
     outInfo->Set(CAN_PRODUCE_SUB_EXTENT(), 0);
+    outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
     outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), dataExtent, 6);
 
     auto scalars = this->CalculateMoment(this->GetMomentOrder());
@@ -540,7 +539,8 @@ int vtkFitsReader::MomentMapRequestData(int ProcId, vtkInformationVector *outVec
     data->SetExtent(dataExtent);
     data->SetOrigin(0.0, 0.0, 0.0);
     data->GetPointData()->SetScalars(scalars);
-
+    std::string name = scalars->GetName();
+    vtkDebugMacro(<< "Returning vtkImageData with scalars named " << name << ".");
     return 1;
 }
 
