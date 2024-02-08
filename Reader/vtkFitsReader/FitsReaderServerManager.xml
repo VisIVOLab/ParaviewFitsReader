@@ -93,6 +93,39 @@
         name="ScaleFactorInfo">
       </IntVectorProperty>
 
+      <IntVectorProperty
+        name="ReadAsType"
+        command="SetReadType"
+        information_property="ReadTypeInfo"
+        number_of_elements="1"
+        default_values="0">
+        <Documentation>
+          This property specifies which algorithm the reader is using to read the FITS file. 0 is reading the file raw, 1 is reading a moment map (see MomentOrder property).
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        command="GetReadType"
+        information_only="1"
+        name="ReadTypeInfo">
+      </IntVectorProperty>
+      <IntVectorProperty
+        name="MomentOrder"
+        command="SetMomentOrder"
+        information_property="MomentOrderInfo"
+        number_of_elements="1"
+        default_values="0">
+        <Documentation>
+          This property specifies what order of moment map is to be used for the reader if it is reading a moment map.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        command="GetMomentOrder"
+        information_only="1"
+        name="MomentOrderInfo">
+      </IntVectorProperty>
+
       <Hints>
         <ReaderFactory extensions="fits fit fts" file_description="FITS Files"/>
       </Hints>
